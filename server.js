@@ -8,18 +8,25 @@ const { createClient } = require("@supabase/supabase-js");
 const app = express();
 const port = Number(process.env.PORT || 3000);
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-const supabaseServiceRole = process.env.SUPABASE_SERVICE_ROLE;
+const supabaseUrl = (process.env.SUPABASE_URL || "").trim();
+const supabaseAnonKey = (process.env.SUPABASE_ANON_KEY || "").trim();
+const supabaseServiceRole = (process.env.SUPABASE_SERVICE_ROLE || "").trim();
 
-if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRole) {
+const missingSupabase =
+  !supabaseUrl || !supabaseAnonKey || !supabaseServiceRole;
+
+if (missingSupabase) {
   console.error("Variaveis de ambiente do Supabase nao definidas.");
-  process.exit(1);
+  if (require.main === module) {
+    process.exit(1);
+  }
 }
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRole, {
-  auth: { persistSession: false },
-});
+const supabaseAdmin = missingSupabase
+  ? null
+  : createClient(supabaseUrl, supabaseServiceRole, {
+      auth: { persistSession: false },
+    });
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -125,6 +132,10 @@ async function sendEvolutionMessage(bot, number, text) {
 // Auth middleware
 // ---------------------------------------------------------------
 async function requireUser(req, res, next) {
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: "Servidor sem configuracao do Supabase." });
+  }
+
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
 
@@ -381,6 +392,10 @@ async function saveMessage(leadId, role, content) {
 
 app.post("/webhook/evolution/:botId", async (req, res) => {
   try {
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: "Servidor sem configuracao do Supabase." });
+    }
+
     const { data: bot } = await supabaseAdmin
       .from("chatbots")
       .select("*")
@@ -422,6 +437,10 @@ app.post("/webhook/evolution/:botId", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Servidor rodando em http://localhost:${port}`);
-});
+module.exports = app;
+
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Servidor rodando em http://localhost:${port}`);
+  });
+}

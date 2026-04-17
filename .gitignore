@@ -3,6 +3,9 @@ node_modules/
 .env.local
 .env.*.local
 
+# Vercel
+.vercel
+
 # Arquivos com credenciais
 supabase gerador chatbot.txt
 *.credentials

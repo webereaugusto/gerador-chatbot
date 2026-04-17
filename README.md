@@ -52,9 +52,45 @@ Abra `http://localhost:3000`.
 │   ├── index.html
 │   ├── app.js
 │   └── styles.css
+├── api/
+│   └── index.js            # Entrada serverless (Vercel)
+├── vercel.json
 ├── .env.example
 └── package.json
 ```
+
+## Deploy na Vercel
+
+O projeto ja inclui `vercel.json` e `api/index.js` para rodar o Express como
+funcao Node na Vercel.
+
+```bash
+npm i -g vercel
+vercel login
+vercel link
+vercel deploy --prod
+```
+
+### Variaveis de ambiente (obrigatorio)
+
+No painel do projeto: **Settings → Environment Variables**, adicione para
+**Production** (e Preview se quiser testar previews):
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE`
+
+Sem isso, `/api/config` retorna vazio e o app nao autentica.
+
+### Evolution API (webhook publico)
+
+Se o projeto estiver com **Deployment Protection** (login Vercel na URL), a
+Evolution **nao** conseguira chamar o webhook. Em **Project → Settings →
+Deployment Protection**, desative a protecao para **Production** (ou use um
+bypass token documentado na Vercel) para que `POST /webhook/evolution/:botId`
+funcione.
+
+O dominio de producao aparece no dashboard apos o deploy (ex. `*.vercel.app`).
 
 ## APIs principais
 
