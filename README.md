@@ -71,6 +71,17 @@ vercel link
 vercel deploy --prod
 ```
 
+### Publicar na sua conta (nao na de outra pessoa)
+
+1. Confira quem esta logado: `vercel whoami`.
+2. Se nao for a conta certa: `vercel logout` e depois `vercel login` (use o
+   e-mail da conta **weber** / desejada no navegador).
+3. Na pasta do projeto: `vercel link` e escolha o **seu** time ou conta
+   pessoal (nao outro time por engano).
+4. Configure de novo as variaveis `SUPABASE_*` em **Settings → Environment
+   Variables** do novo projeto (ou `vercel env add`).
+5. `vercel deploy --prod`.
+
 ### Variaveis de ambiente (obrigatorio)
 
 No painel do projeto: **Settings → Environment Variables**, adicione para
