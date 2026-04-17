@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gerador de Chatbot</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- Tela de login/signup -->
+    <div class="auth-screen" id="authScreen">
+      <div class="auth-card">
+        <div class="brand" style="border: none; padding: 0 0 14px">
+          <div class="brand-logo">GC</div>
+          <div>
+            <div class="brand-title">Gerador de Chatbot</div>
+            <div class="brand-subtitle">Entre na sua conta</div>
+          </div>
+        </div>
+
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-mode="login">Entrar</button>
+          <button class="auth-tab" data-mode="signup">Criar conta</button>
+        </div>
+
+        <label for="authEmail">E-mail</label>
+        <input id="authEmail" type="email" placeholder="voce@exemplo.com" />
+
+        <label for="authPassword">Senha</label>
+        <input id="authPassword" type="password" placeholder="mínimo 6 caracteres" />
+
+        <button class="btn-primary auth-submit" id="authSubmitBtn">Entrar</button>
+        <p class="status-text" id="authStatus"></p>
+      </div>
+    </div>
+
+    <!-- App principal -->
+    <div class="app" id="app" style="display: none">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-logo">GC</div>
+          <div>
+            <div class="brand-title">Gerador</div>
+            <div class="brand-subtitle">de Chatbot</div>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <button class="nav-item active" data-view="chatbots">
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </span>
+            Chatbots
+          </button>
+          <button class="nav-item" data-view="leads">
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            Leads
+          </button>
+          <button class="nav-item" data-view="help">
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                <line x1="12" y1="17" x2="12" y2="17" />
+              </svg>
+            </span>
+            Ajuda
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-stats">
+            <div class="stat-number" id="statBotsTotal">0</div>
+            <div class="stat-label">chatbots</div>
+          </div>
+          <div class="sidebar-stats">
+            <div class="stat-number" id="statBotsConfigured">0</div>
+            <div class="stat-label">configurados</div>
+          </div>
+        </div>
+
+        <div class="user-box" id="userBox">
+          <div class="user-email" id="userEmail"></div>
+          <button class="btn-ghost" id="logoutBtn">Sair</button>
+        </div>
+      </aside>
+
+      <main class="content">
+        <!-- Chatbots -->
+        <section class="view active" data-view="chatbots">
+          <header class="view-header">
+            <div>
+              <h1>Chatbots</h1>
+              <p class="muted">
+                Cada chatbot é independente — tem sua própria chave OpenAI, sua instância da
+                Evolution e seu webhook.
+              </p>
+            </div>
+            <button class="btn-primary" id="openNewBotBtn">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                class="btn-icon"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Novo chatbot
+            </button>
+          </header>
+
+          <div id="botList" class="bot-list"></div>
+        </section>
+
+        <!-- Leads -->
+        <section class="view" data-view="leads">
+          <header class="view-header">
+            <div>
+              <h1>Leads e Conversas</h1>
+              <p class="muted">Veja quem conversou com seus chatbots.</p>
+            </div>
+          </header>
+
+          <div class="leads-toolbar">
+            <label for="leadsBotSelect">Chatbot</label>
+            <select id="leadsBotSelect"></select>
+          </div>
+
+          <div class="leads-layout">
+            <div class="leads-list card" id="leadsList">
+              <div class="empty-state">Selecione um chatbot.</div>
+            </div>
+            <div class="leads-conversation card" id="conversationPanel">
+              <div class="empty-state">Escolha um lead para ver a conversa.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Ajuda -->
+        <section class="view" data-view="help">
+          <header class="view-header">
+            <div>
+              <h1>Ajuda</h1>
+              <p class="muted">Como configurar o webhook na Evolution API.</p>
+            </div>
+          </header>
+
+          <div class="card">
+            <h2>Passo a passo</h2>
+            <ol class="help-list">
+              <li>Crie um chatbot em <strong>Chatbots &rarr; Novo chatbot</strong>.</li>
+              <li>Preencha a chave da OpenAI, URL base + API Key da Evolution e o nome da instância.</li>
+              <li>Copie a URL de <strong>webhook</strong> exibida no card do chatbot.</li>
+              <li>
+                Na Evolution, configure o webhook apontando para essa URL e ative o evento
+                <code>messages.upsert</code>.
+              </li>
+              <li>Envie uma mensagem — o bot responde e o lead aparece em <strong>Leads</strong>.</li>
+            </ol>
+          </div>
+
+          <div class="card">
+            <h2>Banco de dados</h2>
+            <p class="muted">
+              Tudo é salvo no Supabase: usuários, chatbots, leads e mensagens.
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Modal Chatbot (novo/editar) -->
+    <div class="modal-backdrop" id="botModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="botModalTitle">Novo chatbot</h2>
+          <button class="icon-btn" id="closeBotModalBtn" aria-label="Fechar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <input type="hidden" id="botId" />
+
+        <label for="botName">Nome</label>
+        <input id="botName" type="text" placeholder="Atendimento Loja" />
+
+        <div class="section-label">OpenAI</div>
+        <label for="botOpenAiKey">Chave da API</label>
+        <input id="botOpenAiKey" type="password" placeholder="sk-..." />
+        <p class="hint" id="botOpenAiKeyHint"></p>
+
+        <div class="section-label">Evolution API</div>
+        <div class="form-grid">
+          <div>
+            <label for="botEvolutionBaseUrl">URL base</label>
+            <input
+              id="botEvolutionBaseUrl"
+              type="text"
+              placeholder="https://seu-dominio-da-evolution"
+            />
+          </div>
+          <div>
+            <label for="botEvolutionInstance">Instância</label>
+            <input id="botEvolutionInstance" type="text" placeholder="minha-instancia" />
+          </div>
+          <div class="form-grid-full">
+            <label for="botEvolutionApiKey">API Key</label>
+            <input id="botEvolutionApiKey" type="password" />
+            <p class="hint" id="botEvolutionApiKeyHint"></p>
+          </div>
+        </div>
+
+        <div class="section-label">Comportamento</div>
+        <label for="botSystemPrompt">Prompt</label>
+        <textarea
+          id="botSystemPrompt"
+          placeholder="Você é um atendente comercial objetivo..."
+        ></textarea>
+
+        <label for="botKnowledgeBase">Base de conhecimento</label>
+        <textarea
+          id="botKnowledgeBase"
+          placeholder="Produtos, preços, políticas, horários, FAQ..."
+          style="min-height: 140px"
+        ></textarea>
+
+        <div class="actions-row">
+          <button class="btn-primary" id="saveBotBtn">Salvar chatbot</button>
+          <span id="botStatus" class="status-text"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Teste -->
+    <div class="modal-backdrop" id="testModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Testar <span id="testBotName"></span></h2>
+          <button class="icon-btn" id="closeTestModalBtn" aria-label="Fechar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <input type="hidden" id="testBotId" />
+
+        <label for="testQuestion">Pergunta</label>
+        <input
+          id="testQuestion"
+          type="text"
+          value="Escreva uma saudação curta para um cliente."
+        />
+
+        <div class="actions-row">
+          <button class="btn-primary" id="runTestBtn">Enviar</button>
+        </div>
+
+        <div class="chat-reply">
+          <div class="chat-reply-label">Resposta</div>
+          <div id="testResponse" class="chat-reply-text muted">Nenhum teste ainda.</div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
