@@ -1,4 +1,4 @@
-let supabase = null;
+let sb = null;
 let session = null;
 let cachedBots = [];
 let selectedLeadId = null;
@@ -9,13 +9,21 @@ let selectedLeadId = null;
 async function bootstrap() {
   const res = await fetch("/api/config");
   const cfg = await res.json();
-  supabase = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+
+  if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+    document.getElementById("authStatus").className = "status-text error";
+    document.getElementById("authStatus").innerText =
+      "Servidor sem configuração do Supabase. Configure as variáveis de ambiente no Vercel.";
+    return;
+  }
+
+  sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
   const {
     data: { session: existing },
-  } = await supabase.auth.getSession();
+  } = await sb.auth.getSession();
 
-  supabase.auth.onAuthStateChange((_event, newSession) => {
+  sb.auth.onAuthStateChange((_event, newSession) => {
     session = newSession;
     if (newSession) showApp();
     else showAuth();
@@ -100,7 +108,7 @@ async function handleAuthSubmit() {
 
   try {
     if (authMode === "signup") {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await sb.auth.signUp({ email, password });
       if (error) {
         statusEl.className = "status-text error";
         statusEl.innerText = error.message;
@@ -113,7 +121,7 @@ async function handleAuthSubmit() {
         return;
       }
 
-      const login = await supabase.auth.signInWithPassword({ email, password });
+      const login = await sb.auth.signInWithPassword({ email, password });
       if (login.error) {
         statusEl.className = "status-text ok";
         statusEl.innerText =
@@ -125,7 +133,7 @@ async function handleAuthSubmit() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await sb.auth.signInWithPassword({ email, password });
     if (error) {
       statusEl.className = "status-text error";
       statusEl.innerText =
@@ -151,7 +159,7 @@ document.getElementById("authSubmitBtn").addEventListener("click", handleAuthSub
 });
 
 document.getElementById("logoutBtn").addEventListener("click", async () => {
-  await supabase.auth.signOut();
+  await sb.auth.signOut();
 });
 
 // ---------------------------------------------------------------
