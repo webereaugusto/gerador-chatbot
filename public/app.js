@@ -273,6 +273,15 @@ function openBotModal(bot) {
   document.getElementById("botWhatsappTestPhone").value =
     bot?.whatsappTestPhone || "";
 
+  document.getElementById("botOpenAiModel").value =
+    bot?.openaiModel || "gpt-4o-mini";
+  document.getElementById("botTemperature").value =
+    bot?.temperature ?? 0.6;
+  document.getElementById("botMaxTokens").value = bot?.maxTokens ?? 400;
+  document.getElementById("botHumanizeEnabled").checked = bot
+    ? Boolean(bot.humanizeEnabled)
+    : true;
+
   document.getElementById("botOpenAiKeyHint").innerText = bot?.hasOpenAiKey
     ? "Chave salva. Preencha apenas para substituir."
     : "";
@@ -500,6 +509,10 @@ async function saveBot() {
       "botWhatsappTestFilterEnabled",
     ).checked,
     whatsappTestPhone: document.getElementById("botWhatsappTestPhone").value,
+    openaiModel: document.getElementById("botOpenAiModel").value,
+    temperature: parseFloat(document.getElementById("botTemperature").value),
+    maxTokens: parseInt(document.getElementById("botMaxTokens").value, 10),
+    humanizeEnabled: document.getElementById("botHumanizeEnabled").checked,
   };
 
   const statusEl = document.getElementById("botStatus");

@@ -266,6 +266,35 @@
           A conexão com o WhatsApp é feita pelo botão <strong>Conectar WhatsApp</strong> no card do chatbot (QR code in-app).
         </p>
 
+        <div class="section-label">Modelo e estilo</div>
+        <div class="form-grid">
+          <div>
+            <label for="botOpenAiModel">Modelo</label>
+            <select id="botOpenAiModel">
+              <option value="gpt-4o-mini">gpt-4o-mini (rápido/barato)</option>
+              <option value="gpt-4o">gpt-4o</option>
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+              <option value="gpt-4.1">gpt-4.1</option>
+              <option value="o1-mini">o1-mini (raciocínio)</option>
+            </select>
+          </div>
+          <div>
+            <label for="botTemperature">Temperatura (0–1.5)</label>
+            <input id="botTemperature" type="number" step="0.1" min="0" max="1.5" />
+          </div>
+          <div class="form-grid-full">
+            <label for="botMaxTokens">Max tokens por resposta</label>
+            <input id="botMaxTokens" type="number" min="80" max="1500" />
+            <p class="hint">
+              Limita o tamanho da resposta da IA. Valores entre 250 e 500 são ideais para WhatsApp.
+            </p>
+          </div>
+        </div>
+        <label class="checkbox-row" for="botHumanizeEnabled">
+          <input id="botHumanizeEnabled" type="checkbox" />
+          <span>Humanizar conversa (indicador "digitando..." + resposta dividida em até 3 balões)</span>
+        </label>
+
         <div class="section-label">Filtro de teste (WhatsApp)</div>
         <label class="checkbox-row" for="botWhatsappTestFilterEnabled">
           <input id="botWhatsappTestFilterEnabled" type="checkbox" />

@@ -22,6 +22,10 @@ create table if not exists public.chatbots (
   whatsapp_test_phone text not null default '',
   whatsapp_connection_status text not null default 'disconnected',
   whatsapp_connected_at timestamptz,
+  openai_model text not null default 'gpt-4o-mini',
+  temperature numeric not null default 0.6,
+  max_tokens integer not null default 400,
+  humanize_enabled boolean not null default true,
   created_at timestamptz not null default now()
 );
 
@@ -39,6 +43,16 @@ alter table public.chatbots
   add column if not exists whatsapp_connection_status text not null default 'disconnected';
 alter table public.chatbots
   add column if not exists whatsapp_connected_at timestamptz;
+
+-- migracao idempotente (modelo/humanizacao por chatbot)
+alter table public.chatbots
+  add column if not exists openai_model text not null default 'gpt-4o-mini';
+alter table public.chatbots
+  add column if not exists temperature numeric not null default 0.6;
+alter table public.chatbots
+  add column if not exists max_tokens integer not null default 400;
+alter table public.chatbots
+  add column if not exists humanize_enabled boolean not null default true;
 
 -- -----------------------------
 -- Tabela: leads

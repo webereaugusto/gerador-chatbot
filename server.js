@@ -60,8 +60,41 @@ app.use((req, res, next) => {
 
 app.use(express.static(path.join(__dirname, "public")));
 
-const fallbackPrompt =
-  "Voce e um assistente util e direto. Responda em portugues do Brasil.";
+const fallbackPrompt = `Voce e um atendente conversando via WhatsApp em portugues do Brasil.
+
+REGRAS OBRIGATORIAS:
+- Nao se apresente nem diga "Ola, eu sou o assistente..." — va direto ao ponto.
+- Nao repita o que o usuario disse.
+- Respostas curtas: 1 a 3 frases na maioria dos casos. Paragrafos so quando realmente necessario.
+- Tom natural de WhatsApp, informal mas profissional. Emojis com moderacao.
+- Nao use listas numeradas ou markdown pesado; se precisar listar, use bullets simples com "-".
+- Quando nao souber algo, diga "vou verificar e te retorno", nao invente.
+- Nao pergunte "como posso ajudar?" em toda resposta.`;
+
+const STYLE_GUIDE_SUFFIX = `\n\n---\nLembretes de estilo (obrigatorios):\n- Nao se apresente nem abra a resposta com saudacoes genericas.\n- Va direto ao ponto em 1-3 frases.\n- Nao repita o que o usuario acabou de dizer.\n- Tom de WhatsApp, natural.`;
+
+const ALLOWED_MODELS = [
+  "gpt-4o-mini",
+  "gpt-4o",
+  "gpt-4.1-mini",
+  "gpt-4.1",
+  "o1-mini",
+];
+
+function normalizeModel(value) {
+  const v = String(value || "").trim();
+  return ALLOWED_MODELS.includes(v) ? v : "gpt-4o-mini";
+}
+
+function clampNumber(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // ---------------------------------------------------------------
 // Helpers
@@ -116,8 +149,10 @@ function extractPushName(payload) {
 function buildSystemPrompt(bot) {
   const basePrompt = bot?.system_prompt || fallbackPrompt;
   const knowledge = (bot?.knowledge_base || "").trim();
-  if (!knowledge) return basePrompt;
-  return `${basePrompt}\n\nBase de conhecimento do chatbot:\n${knowledge}`;
+  const core = knowledge
+    ? `${basePrompt}\n\nBase de conhecimento do chatbot:\n${knowledge}`
+    : basePrompt;
+  return core + STYLE_GUIDE_SUFFIX;
 }
 
 function isBotConfigured(bot) {
@@ -143,6 +178,11 @@ function serializeBot(req, bot) {
     whatsappTestPhone: bot.whatsapp_test_phone || "",
     whatsappConnectionStatus: bot.whatsapp_connection_status || "disconnected",
     whatsappConnectedAt: bot.whatsapp_connected_at || null,
+    openaiModel: bot.openai_model || "gpt-4o-mini",
+    temperature: typeof bot.temperature === "number" ? bot.temperature : 0.6,
+    maxTokens: bot.max_tokens || 400,
+    humanizeEnabled:
+      bot.humanize_enabled === undefined ? true : Boolean(bot.humanize_enabled),
     configured: isBotConfigured(bot),
     webhookUrl: buildBotWebhookUrl(req, bot.id),
     createdAt: bot.created_at,
@@ -158,9 +198,14 @@ async function generateAiReply(bot, userMessage, history = []) {
   ];
 
   try {
+    const model = normalizeModel(bot.openai_model);
+    const temperature =
+      typeof bot.temperature === "number" ? bot.temperature : 0.6;
+    const maxTokens = bot.max_tokens || 400;
     const response = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
-      temperature: 0.4,
+      model,
+      temperature,
+      max_tokens: maxTokens,
       messages,
     });
 
@@ -213,6 +258,105 @@ async function sendEvolutionMessage(bot, number, text) {
     wrapped.httpBody = body;
     throw wrapped;
   }
+}
+
+// ---------------------------------------------------------------
+// Humanizacao: presence ("digitando...") + split em baloes
+// ---------------------------------------------------------------
+async function sendEvolutionPresence(bot, number, presence) {
+  if (!evolutionBaseUrl || !bot?.evolution_instance) return;
+  const apiKey = bot.evolution_api_key || evolutionGlobalKey;
+  const url = `${evolutionBaseUrl}/chat/sendPresence/${bot.evolution_instance}`;
+  try {
+    await axios.post(
+      url,
+      { number, presence },
+      {
+        headers: { apikey: apiKey, "Content-Type": "application/json" },
+        timeout: 10000,
+      },
+    );
+  } catch (err) {
+    // Nao trava o fluxo se a Evolution nao suportar presence
+    console.warn(
+      `[EVO presence] ${presence} falhou (${err.response?.status || err.message}).`,
+    );
+  }
+}
+
+function splitReplyIntoChunks(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return [];
+
+  // 1) Paragrafos (quebra dupla de linha)
+  let chunks = raw
+    .split(/\n{2,}/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // 2) Se veio 1 so bloco e esta longo, tenta quebrar em frases
+  if (chunks.length === 1 && raw.length > 240) {
+    const sentences = raw.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) || [raw];
+    const trimmed = sentences.map((s) => s.trim()).filter(Boolean);
+    // Agrupa frases ate ter ~3 grupos balanceados
+    const target = Math.min(3, Math.max(2, Math.ceil(trimmed.length / 2)));
+    const approxSize = Math.ceil(raw.length / target);
+    const grouped = [];
+    let buf = "";
+    for (const s of trimmed) {
+      if ((buf + " " + s).trim().length > approxSize && buf) {
+        grouped.push(buf.trim());
+        buf = s;
+      } else {
+        buf = buf ? buf + " " + s : s;
+      }
+    }
+    if (buf) grouped.push(buf.trim());
+    chunks = grouped.length ? grouped : [raw];
+  }
+
+  // 3) Mesclar chunks curtinhos (< 60) com o anterior
+  const merged = [];
+  for (const c of chunks) {
+    if (merged.length && c.length < 60) {
+      merged[merged.length - 1] += "\n" + c;
+    } else {
+      merged.push(c);
+    }
+  }
+
+  // 4) Limitar a 3; o que sobrar vai pro ultimo
+  if (merged.length > 3) {
+    const head = merged.slice(0, 2);
+    const tail = merged.slice(2).join("\n\n");
+    return [...head, tail];
+  }
+  return merged;
+}
+
+function computeTypingMs(chunk) {
+  const base = chunk.length * 25;
+  return Math.min(3500, Math.max(800, base));
+}
+
+async function sendHumanizedReply(bot, number, text) {
+  const chunks = splitReplyIntoChunks(text);
+  if (!chunks.length) return;
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    await sendEvolutionPresence(bot, number, "composing");
+    await sleep(computeTypingMs(chunk));
+    await sendEvolutionMessage(bot, number, chunk);
+  }
+  await sendEvolutionPresence(bot, number, "paused");
+}
+
+async function sendReply(bot, number, text) {
+  if (bot?.humanize_enabled !== false) {
+    return sendHumanizedReply(bot, number, text);
+  }
+  return sendEvolutionMessage(bot, number, text);
 }
 
 // ---------------------------------------------------------------
@@ -525,6 +669,11 @@ function readBotFields(body) {
     knowledge_base: String(body?.knowledgeBase || "").trim(),
     whatsapp_test_filter_enabled: Boolean(body?.whatsappTestFilterEnabled),
     whatsapp_test_phone: normalizeBrPhone(body?.whatsappTestPhone || ""),
+    openai_model: normalizeModel(body?.openaiModel),
+    temperature: clampNumber(body?.temperature, 0, 1.5, 0.6),
+    max_tokens: Math.round(clampNumber(body?.maxTokens, 80, 1500, 400)),
+    humanize_enabled:
+      body?.humanizeEnabled === undefined ? true : Boolean(body?.humanizeEnabled),
   };
 }
 
@@ -568,6 +717,10 @@ app.post("/api/chatbots", requireUser, async (req, res) => {
       knowledge_base: fields.knowledge_base,
       whatsapp_test_filter_enabled: fields.whatsapp_test_filter_enabled,
       whatsapp_test_phone: fields.whatsapp_test_phone,
+      openai_model: fields.openai_model,
+      temperature: fields.temperature,
+      max_tokens: fields.max_tokens,
+      humanize_enabled: fields.humanize_enabled,
     })
     .select("*")
     .single();
@@ -595,6 +748,10 @@ app.put("/api/chatbots/:id", requireUser, async (req, res) => {
     knowledge_base: fields.knowledge_base,
     whatsapp_test_filter_enabled: fields.whatsapp_test_filter_enabled,
     whatsapp_test_phone: fields.whatsapp_test_phone,
+    openai_model: fields.openai_model,
+    temperature: fields.temperature,
+    max_tokens: fields.max_tokens,
+    humanize_enabled: fields.humanize_enabled,
   };
 
   if (fields.openai_api_key) update.openai_api_key = fields.openai_api_key;
@@ -1159,7 +1316,7 @@ app.post("/webhook/evolution/:botId", async (req, res) => {
     const reply = await generateAiReply(bot, text, historyWithoutLast);
 
     await saveMessage(lead.id, "assistant", reply);
-    await sendEvolutionMessage(bot, number, reply);
+    await sendReply(bot, number, reply);
 
     res.status(200).json({ ok: true });
   } catch (error) {

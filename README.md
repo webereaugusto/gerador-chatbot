@@ -39,6 +39,14 @@ alter table public.chatbots
   add column if not exists whatsapp_connection_status text not null default 'disconnected';
 alter table public.chatbots
   add column if not exists whatsapp_connected_at timestamptz;
+alter table public.chatbots
+  add column if not exists openai_model text not null default 'gpt-4o-mini';
+alter table public.chatbots
+  add column if not exists temperature numeric not null default 0.6;
+alter table public.chatbots
+  add column if not exists max_tokens integer not null default 400;
+alter table public.chatbots
+  add column if not exists humanize_enabled boolean not null default true;
 ```
 
 ## Rodando
@@ -128,6 +136,17 @@ Importante sobre a Evolution:
 - Precisa rodar num **host persistente** (VPS, Railway, Render, Coolify). Vercel nao serve como host de Evolution (serverless).
 - A URL precisa ser publica em HTTPS para o webhook do seu chatbot funcionar.
 - Se o projeto Vercel estiver com **Deployment Protection**, o Evolution nao consegue chamar o webhook — desative em **Settings → Deployment Protection**.
+
+### Modelo e humanizacao
+
+Cada chatbot tem seu proprio modelo LLM, temperatura, max_tokens e flag de humanizacao.
+
+- **Modelo** (`openai_model`): `gpt-4o-mini` (padrao), `gpt-4o`, `gpt-4.1-mini`, `gpt-4.1`, `o1-mini`. Valores fora da whitelist sao normalizados para `gpt-4o-mini`.
+- **Temperatura** (`temperature`): 0 a 1.5, padrao 0.6. Valores baixos = mais previsivel; altos = mais criativo.
+- **Max tokens** (`max_tokens`): 80 a 1500, padrao 400. Limita o tamanho da resposta. Entre 250 e 500 e ideal para WhatsApp.
+- **Humanizar conversa** (`humanize_enabled`): quando ligado, o backend (1) envia presence `composing` ("digitando...") antes de cada parte da resposta, (2) aplica um delay proporcional ao tamanho do texto antes de enviar (~25ms por caractere, entre 800ms e 3,5s), e (3) divide respostas longas em ate 3 baloes (paragrafos ou frases). Quando desligado, envia tudo num balao so, instantaneo.
+
+O backend tambem anexa automaticamente um **style guide** curto ao final do system prompt (nao se apresentar, respostas curtas, sem repetir), reforcando o comportamento mesmo em chatbots que ja tem prompt custom.
 
 ### Filtro de teste (whitelist de numero)
 
