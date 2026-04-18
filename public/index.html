@@ -70,6 +70,14 @@
             </span>
             Leads
           </button>
+          <button class="nav-item" data-view="apikeys">
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 7h16M4 12h16M4 17h10" />
+              </svg>
+            </span>
+            API
+          </button>
           <button class="nav-item" data-view="help">
             <span class="nav-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -148,6 +156,47 @@
             </div>
             <div class="leads-conversation card" id="conversationPanel">
               <div class="empty-state">Escolha um lead para ver a conversa.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- API externa -->
+        <section class="view" data-view="apikeys">
+          <header class="view-header">
+            <div>
+              <h1>API externa</h1>
+              <p class="muted">
+                Chaves para integrações (n8n, CRM, backends). Somente leitura — consulte chatbots, leads e
+                mensagens.
+              </p>
+            </div>
+          </header>
+
+          <div class="card">
+            <h2>Nova chave</h2>
+            <p class="muted">
+              Defina <code>API_KEY_PEPPER</code> no Vercel e rode o SQL da tabela
+              <code>api_keys</code> no Supabase (veja o README). A chave completa aparece uma vez ao gerar.
+            </p>
+            <div class="form-grid" style="align-items: flex-end">
+              <div class="form-grid-full" style="max-width: 320px">
+                <label for="newApiKeyName">Nome</label>
+                <input id="newApiKeyName" type="text" placeholder="Ex.: n8n produção" />
+              </div>
+              <button class="btn-primary" type="button" id="createApiKeyBtn">Gerar chave</button>
+            </div>
+            <p class="status-text" id="apiKeyCreateStatus"></p>
+            <div id="apiKeyReveal" class="api-key-reveal" style="display: none">
+              <strong>Copie agora — não será exibida de novo:</strong>
+              <textarea id="apiKeyRevealValue" readonly rows="2" style="margin-top: 8px"></textarea>
+              <button type="button" class="btn-ghost" id="copyNewApiKeyBtn">Copiar chave</button>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top: 16px">
+            <h2>Suas chaves</h2>
+            <div id="apiKeysList" class="api-keys-list">
+              <div class="empty-state muted">Carregando...</div>
             </div>
           </div>
         </section>

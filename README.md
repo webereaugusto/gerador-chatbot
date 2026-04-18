@@ -22,8 +22,12 @@ Abra o **SQL Editor** do seu projeto no Supabase e rode o conteudo de
 - `public.chatbots`
 - `public.leads`
 - `public.messages`
+- `public.api_keys` (chaves para a API externa de consultas)
 
 E ativa RLS para isolar dados por usuario.
+
+**Projetos ja existentes:** rode no SQL Editor apenas o bloco novo da tabela `api_keys`
+e as politicas correspondentes (ou o arquivo inteiro — os `if not exists` sao idempotentes).
 
 ## Rodando
 
@@ -90,8 +94,9 @@ No painel do projeto: **Settings → Environment Variables**, adicione para
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE`
+- `API_KEY_PEPPER` — string longa e aleatoria (obrigatoria para **gerar chaves** e usar a **API externa v1**)
 
-Sem isso, `/api/config` retorna vazio e o app nao autentica.
+Sem isso, `/api/config` retorna vazio e o app nao autentica. Sem `API_KEY_PEPPER`, as rotas `/api/v1/*` e `/api/api-keys` retornam erro de configuracao.
 
 ### Evolution API (webhook publico)
 
@@ -115,7 +120,35 @@ O dominio de producao aparece no dashboard apos o deploy (ex. `*.vercel.app`).
 | POST   | `/api/chatbots/:id/test`          | Testa chatbot com pergunta de IA      |
 | GET    | `/api/chatbots/:id/leads`         | Leads do chatbot                      |
 | GET    | `/api/leads/:id/messages`         | Mensagens de um lead                  |
+| GET    | `/api/api-keys`                   | Lista chaves de API (JWT)             |
+| POST   | `/api/api-keys`                   | Gera chave (JWT) — retorna `key` uma vez |
+| DELETE | `/api/api-keys/:id`               | Revoga chave (JWT)                    |
 | POST   | `/webhook/evolution/:botId`       | Webhook da Evolution                   |
+
+### API externa v1 (integracoes — somente leitura)
+
+Autenticacao: header **`Authorization: Bearer gc_live_...`** ou **`X-Api-Key: gc_live_...`**
+(a chave completa comeca com `gc_live_` e e gerada no painel em **API**).
+
+| Metodo | Rota | Descricao |
+|--------|------|-----------|
+| GET | `/api/v1/chatbots` | Lista chatbots (sem segredos; inclui `webhookUrl`, `configured`) |
+| GET | `/api/v1/chatbots/:chatbotId/leads` | Leads do chatbot. Query: `limit` (1–100, padrao 50), `before` (ISO, paginacao por `last_message_at`) |
+| GET | `/api/v1/leads/:leadId/messages` | Lead + mensagens em ordem cronologica |
+
+Exemplo (substitua a URL e a chave):
+
+```bash
+curl -s -H "Authorization: Bearer gc_live_SUA_CHAVE" \
+  "https://SEU-PROJETO.vercel.app/api/v1/chatbots"
+```
+
+Proxima pagina de leads (se `hasMore` for true):
+
+```bash
+curl -s -H "X-Api-Key: gc_live_SUA_CHAVE" \
+  "https://SEU-PROJETO.vercel.app/api/v1/chatbots/UUID_DO_BOT/leads?limit=50&before=2026-04-18T12:00:00.000Z"
+```
 
 ## Observacoes
 

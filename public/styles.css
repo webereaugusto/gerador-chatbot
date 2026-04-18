@@ -512,6 +512,11 @@ textarea {
   color: var(--text-muted);
 }
 
+.empty-state.error {
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
 /* Chat reply */
 .chat-reply {
   margin-top: 16px;
@@ -865,6 +870,47 @@ textarea {
   font-size: 10px;
   opacity: 0.7;
   margin-top: 4px;
+}
+
+.api-key-reveal {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.api-key-reveal textarea {
+  width: 100%;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.api-keys-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.api-key-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.api-key-row.revoked {
+  opacity: 0.55;
+}
+
+.api-key-meta {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* Responsive */

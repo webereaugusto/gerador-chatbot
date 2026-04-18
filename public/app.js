@@ -203,6 +203,7 @@ navItems.forEach((item) => {
     views.forEach((v) => v.classList.toggle("active", v.dataset.view === target));
 
     if (target === "leads") loadLeadsView();
+    if (target === "apikeys") loadApiKeysView();
   });
 });
 
@@ -684,5 +685,105 @@ async function loadConversation(leadId) {
   const body = panel.querySelector(".conversation-body");
   if (body) body.scrollTop = body.scrollHeight;
 }
+
+// ---------------------------------------------------------------
+// API externa (chaves)
+// ---------------------------------------------------------------
+async function loadApiKeysView() {
+  const listEl = document.getElementById("apiKeysList");
+  const statusEl = document.getElementById("apiKeyCreateStatus");
+  if (statusEl) statusEl.innerText = "";
+
+  const res = await authFetch("/api/api-keys");
+  if (!res.ok) {
+    listEl.innerHTML =
+      '<div class="empty-state error">Não foi possível carregar as chaves. Verifique se a tabela api_keys existe e se API_KEY_PEPPER está configurado.</div>';
+    return;
+  }
+  const data = await res.json();
+  renderApiKeysList(data.items || []);
+}
+
+function renderApiKeysList(items) {
+  const listEl = document.getElementById("apiKeysList");
+  if (!items.length) {
+    listEl.innerHTML = '<div class="empty-state muted">Nenhuma chave ainda. Gere uma acima.</div>';
+    return;
+  }
+
+  listEl.innerHTML = items
+    .map((k) => {
+      const revoked = Boolean(k.revoked_at);
+      return `
+      <div class="api-key-row${revoked ? " revoked" : ""}" data-key-id="${escapeHtml(k.id)}">
+        <div>
+          <strong>${escapeHtml(k.name)}</strong>
+          <span class="api-key-meta"> · termina em …${escapeHtml(k.key_hint)}</span>
+          <div class="api-key-meta">
+            criada ${formatDate(k.created_at)}
+            ${k.last_used_at ? ` · último uso ${formatDate(k.last_used_at)}` : ""}
+            ${revoked ? ` · revogada ${formatDate(k.revoked_at)}` : ""}
+          </div>
+        </div>
+        ${
+          revoked
+            ? ""
+            : `<button type="button" class="btn-ghost" data-action="revoke-api-key">Revogar</button>`
+        }
+      </div>`;
+    })
+    .join("");
+}
+
+document.getElementById("createApiKeyBtn").addEventListener("click", async () => {
+  const name = document.getElementById("newApiKeyName").value.trim() || "Integração";
+  const statusEl = document.getElementById("apiKeyCreateStatus");
+  const reveal = document.getElementById("apiKeyReveal");
+  const revealVal = document.getElementById("apiKeyRevealValue");
+
+  statusEl.className = "status-text";
+  statusEl.innerText = "Gerando...";
+
+  const res = await authFetch("/api/api-keys", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    statusEl.className = "status-text error";
+    statusEl.innerText = data.error || "Erro ao gerar chave.";
+    return;
+  }
+
+  statusEl.className = "status-text ok";
+  statusEl.innerText = "Chave criada. Copie e guarde em local seguro.";
+  reveal.style.display = "block";
+  revealVal.value = data.key || "";
+  document.getElementById("newApiKeyName").value = "";
+  loadApiKeysView();
+});
+
+document.getElementById("copyNewApiKeyBtn").addEventListener("click", () => {
+  const revealVal = document.getElementById("apiKeyRevealValue");
+  revealVal.select();
+  document.execCommand("copy");
+});
+
+document.getElementById("apiKeysList").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-action='revoke-api-key']");
+  if (!btn) return;
+  const row = btn.closest("[data-key-id]");
+  const id = row?.dataset?.keyId;
+  if (!id || !confirm("Revogar esta chave? Integrações que a usam deixarão de funcionar.")) return;
+
+  const res = await authFetch(`/api/api-keys/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(err.error || "Erro ao revogar.");
+    return;
+  }
+  loadApiKeysView();
+});
 
 bootstrap();

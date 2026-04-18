@@ -63,11 +63,29 @@ create index if not exists messages_lead_id_idx
   on public.messages(lead_id, created_at);
 
 -- -----------------------------
+-- Tabela: api_keys (integrações externas — somente hash da chave)
+-- -----------------------------
+create table if not exists public.api_keys (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null default 'Integração',
+  key_hash text not null unique,
+  key_hint text not null,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz,
+  revoked_at timestamptz
+);
+
+create index if not exists api_keys_user_id_idx
+  on public.api_keys(user_id);
+
+-- -----------------------------
 -- Row Level Security
 -- -----------------------------
 alter table public.chatbots enable row level security;
 alter table public.leads enable row level security;
 alter table public.messages enable row level security;
+alter table public.api_keys enable row level security;
 
 -- Chatbots: o usuario so ve/gere os proprios
 drop policy if exists "chatbots_select_own" on public.chatbots;
@@ -114,3 +132,27 @@ create policy "messages_select_own"
         and c.user_id = auth.uid()
     )
   );
+
+-- API keys: só o dono
+drop policy if exists "api_keys_select_own" on public.api_keys;
+create policy "api_keys_select_own"
+  on public.api_keys for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "api_keys_insert_own" on public.api_keys;
+create policy "api_keys_insert_own"
+  on public.api_keys for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "api_keys_update_own" on public.api_keys;
+create policy "api_keys_update_own"
+  on public.api_keys for update
+  using (auth.uid() = user_id);
+
+drop policy if exists "api_keys_delete_own" on public.api_keys;
+create policy "api_keys_delete_own"
+  on public.api_keys for delete
+  using (auth.uid() = user_id);
+
+-- Projetos antigos: se a tabela api_keys ainda nao existir, rode apenas o bloco
+-- "Tabela: api_keys" e as politicas "API keys" acima no SQL Editor.

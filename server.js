@@ -1,4 +1,5 @@
 require("dotenv").config();
+const crypto = require("crypto");
 const express = require("express");
 const path = require("path");
 const OpenAI = require("openai");
@@ -11,6 +12,7 @@ const port = Number(process.env.PORT || 3000);
 const supabaseUrl = (process.env.SUPABASE_URL || "").trim();
 const supabaseAnonKey = (process.env.SUPABASE_ANON_KEY || "").trim();
 const supabaseServiceRole = (process.env.SUPABASE_SERVICE_ROLE || "").trim();
+const apiKeyPepper = (process.env.API_KEY_PEPPER || "").trim();
 
 const missingSupabase =
   !supabaseUrl || !supabaseAnonKey || !supabaseServiceRole;
@@ -30,15 +32,19 @@ const supabaseAdmin = missingSupabase
 
 app.use(express.json({ limit: "1mb" }));
 
-// CORS aberto apenas para rotas publicas do widget.
+// CORS aberto para widget e API externa v1 (consultas server-to-server ou browser).
 app.use((req, res, next) => {
   if (
     req.path.startsWith("/api/public/") ||
+    req.path.startsWith("/api/v1/") ||
     req.path === "/widget.js"
   ) {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Api-Key",
+    );
     if (req.method === "OPTIONS") return res.status(204).end();
   }
   next();
@@ -198,6 +204,102 @@ async function findUserBot(userId, botId) {
 
   if (error) return null;
   return data;
+}
+
+// ---------------------------------------------------------------
+// API keys (integrações externas)
+// ---------------------------------------------------------------
+const API_KEY_PREFIX = "gc_live_";
+
+function hashApiKey(plain) {
+  return crypto
+    .createHash("sha256")
+    .update(`${apiKeyPepper}\n${plain}`)
+    .digest("hex");
+}
+
+function generateApiKeySecret() {
+  return API_KEY_PREFIX + crypto.randomBytes(24).toString("hex");
+}
+
+function extractApiKeyFromRequest(req) {
+  const x = req.headers["x-api-key"];
+  if (x && typeof x === "string" && x.startsWith(API_KEY_PREFIX)) {
+    return x.trim();
+  }
+  const header = req.headers.authorization || "";
+  if (header.startsWith("Bearer ")) {
+    const token = header.slice(7).trim();
+    if (token.startsWith(API_KEY_PREFIX)) return token;
+  }
+  return null;
+}
+
+async function requireApiKey(req, res, next) {
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: "Servidor sem configuracao do Supabase." });
+  }
+  if (!apiKeyPepper) {
+    console.warn("API_KEY_PEPPER nao definido — defina no Vercel para usar a API externa.");
+    return res.status(503).json({
+      error: "API externa desabilitada. Configure API_KEY_PEPPER no servidor.",
+    });
+  }
+
+  const raw = extractApiKeyFromRequest(req);
+  if (!raw) {
+    return res.status(401).json({
+      error: "Chave de API obrigatoria.",
+      hint: 'Use Authorization: Bearer gc_live_... ou header X-Api-Key.',
+    });
+  }
+
+  const keyHash = hashApiKey(raw);
+  const { data: row, error } = await supabaseAdmin
+    .from("api_keys")
+    .select("id, user_id")
+    .eq("key_hash", keyHash)
+    .is("revoked_at", null)
+    .maybeSingle();
+
+  if (error || !row) {
+    return res.status(401).json({ error: "Chave de API invalida ou revogada." });
+  }
+
+  req.apiKeyId = row.id;
+  req.externalUserId = row.user_id;
+
+  supabaseAdmin
+    .from("api_keys")
+    .update({ last_used_at: new Date().toISOString() })
+    .eq("id", row.id)
+    .then(() => {})
+    .catch(() => {});
+
+  next();
+}
+
+function serializeBotV1(req, bot) {
+  return {
+    id: bot.id,
+    name: bot.name,
+    createdAt: bot.created_at,
+    configured: isBotConfigured(bot),
+    webhookUrl: buildBotWebhookUrl(req, bot.id),
+  };
+}
+
+async function findLeadForExternalUser(userId, leadId) {
+  const { data: lead, error } = await supabaseAdmin
+    .from("leads")
+    .select("id, chatbot_id, phone, name, source, last_message_at, created_at")
+    .eq("id", leadId)
+    .single();
+
+  if (error || !lead) return null;
+  const bot = await findUserBot(userId, lead.chatbot_id);
+  if (!bot) return null;
+  return lead;
 }
 
 // ---------------------------------------------------------------
@@ -365,6 +467,151 @@ app.get("/api/leads/:id/messages", requireUser, async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   res.json({ lead, items: data || [] });
+});
+
+// ---------------------------------------------------------------
+// API externa v1 (somente leitura, chave de API)
+// ---------------------------------------------------------------
+app.get("/api/v1/chatbots", requireApiKey, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("chatbots")
+      .select("*")
+      .eq("user_id", req.externalUserId)
+      .order("created_at", { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ items: (data || []).map((bot) => serializeBotV1(req, bot)) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/v1/chatbots/:chatbotId/leads", requireApiKey, async (req, res) => {
+  try {
+    const bot = await findUserBot(req.externalUserId, req.params.chatbotId);
+    if (!bot) return res.status(404).json({ error: "Chatbot nao encontrado." });
+
+    const rawLimit = parseInt(String(req.query.limit || "50"), 10);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 50, 1), 100);
+    const before = String(req.query.before || "").trim();
+
+    let q = supabaseAdmin
+      .from("leads")
+      .select("*")
+      .eq("chatbot_id", bot.id)
+      .order("last_message_at", { ascending: false })
+      .limit(limit + 1);
+
+    if (before) {
+      q = q.lt("last_message_at", before);
+    }
+
+    const { data, error } = await q;
+    if (error) return res.status(500).json({ error: error.message });
+
+    const rows = data || [];
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
+    const nextBefore = hasMore && last ? last.last_message_at : null;
+
+    res.json({
+      items: page,
+      nextBefore,
+      hasMore: Boolean(nextBefore),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/v1/leads/:leadId/messages", requireApiKey, async (req, res) => {
+  try {
+    const leadRow = await findLeadForExternalUser(req.externalUserId, req.params.leadId);
+    if (!leadRow) return res.status(404).json({ error: "Lead nao encontrado." });
+
+    const lead = {
+      id: leadRow.id,
+      chatbot_id: leadRow.chatbot_id,
+      phone: leadRow.phone,
+      name: leadRow.name,
+      source: leadRow.source,
+      last_message_at: leadRow.last_message_at,
+      created_at: leadRow.created_at,
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from("messages")
+      .select("*")
+      .eq("lead_id", lead.id)
+      .order("created_at", { ascending: true });
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ lead, items: data || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------------------------------------------------------------
+// Gerenciamento de chaves de API (JWT do painel)
+// ---------------------------------------------------------------
+app.get("/api/api-keys", requireUser, async (req, res) => {
+  const { data, error } = await supabaseAdmin
+    .from("api_keys")
+    .select("id, name, key_hint, created_at, last_used_at, revoked_at")
+    .eq("user_id", req.user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ items: data || [] });
+});
+
+app.post("/api/api-keys", requireUser, async (req, res) => {
+  if (!apiKeyPepper) {
+    return res.status(503).json({
+      error: "Configure API_KEY_PEPPER no servidor para gerar chaves.",
+    });
+  }
+
+  const name = String(req.body?.name || "").trim() || "Integração";
+  const secret = generateApiKeySecret();
+  const keyHint = secret.slice(-4);
+  const keyHash = hashApiKey(secret);
+
+  const { data, error } = await supabaseAdmin
+    .from("api_keys")
+    .insert({
+      user_id: req.user.id,
+      name,
+      key_hash: keyHash,
+      key_hint: keyHint,
+    })
+    .select("id, name, created_at, key_hint")
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({
+    ok: true,
+    key: secret,
+    item: data,
+  });
+});
+
+app.delete("/api/api-keys/:id", requireUser, async (req, res) => {
+  const { data, error } = await supabaseAdmin
+    .from("api_keys")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("id", req.params.id)
+    .eq("user_id", req.user.id)
+    .is("revoked_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!data) return res.status(404).json({ error: "Chave nao encontrada ou ja revogada." });
+  res.json({ ok: true });
 });
 
 // ---------------------------------------------------------------
