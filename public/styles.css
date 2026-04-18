@@ -218,7 +218,13 @@ label {
 }
 
 input[type="text"],
+input[type="email"],
 input[type="password"],
+input[type="search"],
+input[type="url"],
+input[type="tel"],
+input[type="number"],
+select,
 textarea {
   width: 100%;
   background: var(--bg);
@@ -655,6 +661,26 @@ textarea {
   width: 100%;
   justify-content: center;
   margin-top: 16px;
+}
+
+.auth-hint {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.auth-card label {
+  margin-top: 14px;
+}
+
+.auth-card input {
+  margin-bottom: 0;
 }
 
 /* Sidebar user box */

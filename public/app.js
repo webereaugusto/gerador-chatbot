@@ -66,42 +66,88 @@ document.querySelectorAll(".auth-tab").forEach((tab) => {
     document.getElementById("authSubmitBtn").innerText =
       authMode === "login" ? "Entrar" : "Criar conta";
     document.getElementById("authStatus").innerText = "";
+
+    const hint = document.getElementById("authHint");
+    if (hint) {
+      hint.innerHTML =
+        authMode === "signup"
+          ? "Informe e-mail e senha (mínimo 6 caracteres) e clique em <strong>Criar conta</strong>. Se a confirmação por e-mail estiver ativa no Supabase, você receberá um link para ativar a conta."
+          : "Primeira vez? Clique em <strong>Criar conta</strong> acima, informe e-mail e senha (mínimo 6 caracteres) e clique em <strong>Criar conta</strong>.";
+    }
   });
 });
 
-document.getElementById("authSubmitBtn").addEventListener("click", async () => {
+async function handleAuthSubmit() {
   const email = document.getElementById("authEmail").value.trim();
   const password = document.getElementById("authPassword").value;
   const statusEl = document.getElementById("authStatus");
+  const btn = document.getElementById("authSubmitBtn");
 
   if (!email || !password) {
     statusEl.className = "status-text error";
     statusEl.innerText = "Preencha e-mail e senha.";
     return;
   }
+  if (password.length < 6) {
+    statusEl.className = "status-text error";
+    statusEl.innerText = "A senha precisa ter pelo menos 6 caracteres.";
+    return;
+  }
 
+  btn.disabled = true;
   statusEl.className = "status-text";
   statusEl.innerText = "Processando...";
 
-  if (authMode === "signup") {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      statusEl.className = "status-text error";
-      statusEl.innerText = error.message;
+  try {
+    if (authMode === "signup") {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        statusEl.className = "status-text error";
+        statusEl.innerText = error.message;
+        return;
+      }
+
+      if (data?.session) {
+        statusEl.className = "status-text ok";
+        statusEl.innerText = "Conta criada. Entrando...";
+        return;
+      }
+
+      const login = await supabase.auth.signInWithPassword({ email, password });
+      if (login.error) {
+        statusEl.className = "status-text ok";
+        statusEl.innerText =
+          "Conta criada! Verifique seu e-mail para confirmar (olhe também o spam) e depois faça login.";
+        return;
+      }
+      statusEl.className = "status-text ok";
+      statusEl.innerText = "Conta criada. Entrando...";
       return;
     }
-    statusEl.className = "status-text ok";
-    statusEl.innerText = "Conta criada. Entrando...";
-    await supabase.auth.signInWithPassword({ email, password });
-    return;
-  }
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      statusEl.className = "status-text error";
+      statusEl.innerText =
+        error.message === "Invalid login credentials"
+          ? "E-mail ou senha incorretos. Se ainda não tem conta, clique em 'Criar conta'."
+          : error.message;
+      return;
+    }
+  } catch (err) {
     statusEl.className = "status-text error";
-    statusEl.innerText = error.message;
-    return;
+    statusEl.innerText = err.message || "Erro inesperado.";
+  } finally {
+    btn.disabled = false;
   }
+}
+
+document.getElementById("authSubmitBtn").addEventListener("click", handleAuthSubmit);
+
+["authEmail", "authPassword"].forEach((id) => {
+  document.getElementById(id).addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleAuthSubmit();
+  });
 });
 
 document.getElementById("logoutBtn").addEventListener("click", async () => {
