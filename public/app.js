@@ -911,6 +911,7 @@ function renderLeadsList() {
       const tags = [];
       if (lead.source === "web") tags.push('<span class="lead-tag">WEB</span>');
       if (lead.source === "whatsapp") tags.push('<span class="lead-tag green">WHATSAPP</span>');
+      if (lead.human_takeover) tags.push('<span class="lead-tag human">HUMANO</span>');
 
       return `
         <div class="lead-item ${isActive ? "active" : ""}" data-lead-id="${lead.id}">
@@ -978,14 +979,18 @@ async function loadConversation(leadId, options = {}) {
   const bot = cachedBots.find((b) => b.id === lead.chatbot_id);
   const whatsappOk = bot?.whatsappConnectionStatus === "open";
   const isWhatsapp = lead.source === "whatsapp";
-  const canSend = isWhatsapp && whatsappOk;
+  const isHuman = !!lead.human_takeover;
+
+  // Web: sempre pode enviar (vai por polling do widget)
+  // WhatsApp: so com conexao aberta
+  const canSend = isWhatsapp ? whatsappOk : true;
 
   const display = lead.name || lead.phone;
-  const statusTxt = canSend
-    ? '<span class="chat-header-status">WhatsApp conectado</span>'
-    : isWhatsapp
-      ? '<span class="chat-header-status off">WhatsApp desconectado</span>'
-      : '<span class="chat-header-status off">Canal: Web widget</span>';
+  const statusTxt = isWhatsapp
+    ? whatsappOk
+      ? '<span class="chat-header-status">WhatsApp conectado</span>'
+      : '<span class="chat-header-status off">WhatsApp desconectado</span>'
+    : '<span class="chat-header-status off">Canal: Web widget</span>';
 
   const header = `
     <div class="chat-header">
@@ -1000,6 +1005,15 @@ async function loadConversation(leadId, options = {}) {
       </div>
       <div class="chat-header-actions">
         <button class="icon-only-btn" id="chatRefreshBtn" title="Atualizar">${INBOX_ICONS.refresh}</button>
+      </div>
+    </div>
+    <div class="takeover-bar">
+      <div class="takeover-toggle" role="group" aria-label="Modo de resposta">
+        <button class="takeover-btn ${!isHuman ? "active" : ""}" data-mode="ai" ${!isHuman ? "disabled" : ""}>IA</button>
+        <button class="takeover-btn ${isHuman ? "active human" : ""}" data-mode="human" ${isHuman ? "disabled" : ""}>HUMANO</button>
+      </div>
+      <div class="takeover-hint ${isHuman ? "active" : ""}">
+        ${isHuman ? "IA pausada · voce esta respondendo este lead" : "IA responde automaticamente"}
       </div>
     </div>
   `;
@@ -1033,8 +1047,7 @@ async function loadConversation(leadId, options = {}) {
   let footerHint = "";
   let placeholder = "Digite sua resposta...";
   if (!isWhatsapp) {
-    footerHint = '<span class="status-warning">Envio manual disponivel apenas para conversas do WhatsApp.</span>';
-    placeholder = "Resposta manual indisponivel para leads web.";
+    footerHint = '<span class="status-ok">Envio direto ao widget (entregue no proximo polling)</span>';
   } else if (!whatsappOk) {
     footerHint = '<span class="status-error">WhatsApp do chatbot desconectado — conecte para enviar.</span>';
     placeholder = "Conecte o WhatsApp do chatbot para enviar.";
@@ -1065,6 +1078,32 @@ async function loadConversation(leadId, options = {}) {
 
   const refreshBtn = panel.querySelector("#chatRefreshBtn");
   if (refreshBtn) refreshBtn.addEventListener("click", () => loadConversation(leadId));
+
+  panel.querySelectorAll(".takeover-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const mode = btn.dataset.mode;
+      const enabled = mode === "human";
+      if (enabled === isHuman) return;
+      btn.disabled = true;
+      try {
+        const r = await authFetch(`/api/leads/${leadId}/takeover`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || "Falha ao alterar modo");
+        if (currentLead) currentLead.human_takeover = !!j.human_takeover;
+        const idx = cachedLeads.findIndex((l) => l.id === leadId);
+        if (idx >= 0) cachedLeads[idx].human_takeover = !!j.human_takeover;
+        renderLeadsList();
+        await loadConversation(leadId, { silent: true });
+      } catch (err) {
+        alert("Nao foi possivel alterar o modo: " + (err.message || err));
+        btn.disabled = false;
+      }
+    });
+  });
 
   const input = panel.querySelector("#chatComposerInput");
   const sendBtn = panel.querySelector("#chatSendBtn");

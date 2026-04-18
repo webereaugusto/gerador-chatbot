@@ -72,6 +72,10 @@ create table if not exists public.leads (
 alter table public.leads
   add column if not exists source text not null default 'whatsapp';
 
+-- migracao idempotente (modo humano por lead)
+alter table public.leads
+  add column if not exists human_takeover boolean not null default false;
+
 create index if not exists leads_chatbot_id_idx
   on public.leads(chatbot_id);
 

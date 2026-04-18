@@ -1017,19 +1017,16 @@ app.post("/api/leads/:id/send-message", requireUser, async (req, res) => {
 
     const bot = lead.chatbots;
 
-    if (lead.source !== "whatsapp") {
-      return res.status(400).json({
-        error: "Envio manual disponivel apenas para leads de WhatsApp.",
-      });
+    if (lead.source === "whatsapp") {
+      if (bot.whatsapp_connection_status !== "open") {
+        return res.status(400).json({
+          error: "WhatsApp do chatbot nao esta conectado.",
+        });
+      }
+      await sendEvolutionMessage(bot, lead.phone, text);
     }
+    // Para leads web basta salvar a mensagem - o widget pega via polling.
 
-    if (bot.whatsapp_connection_status !== "open") {
-      return res.status(400).json({
-        error: "WhatsApp do chatbot nao esta conectado.",
-      });
-    }
-
-    await sendEvolutionMessage(bot, lead.phone, text);
     const msg = await saveMessage(lead.id, "assistant", text);
 
     await supabaseAdmin
@@ -1043,6 +1040,35 @@ app.post("/api/leads/:id/send-message", requireUser, async (req, res) => {
     const detail = error.message || String(error);
     console.error(`[SEND-MANUAL ${src}] ${detail}`);
     res.status(500).json({ error: "Falha ao enviar mensagem.", source: src, detail });
+  }
+});
+
+// Liga/desliga modo humano para um lead (operador assume a conversa).
+app.patch("/api/leads/:id/takeover", requireUser, async (req, res) => {
+  try {
+    const enabled = Boolean(req.body?.enabled);
+
+    const { data: lead, error: leadError } = await supabaseAdmin
+      .from("leads")
+      .select("id, chatbots!inner(user_id)")
+      .eq("id", req.params.id)
+      .single();
+
+    if (leadError || !lead || lead.chatbots.user_id !== req.user.id) {
+      return res.status(404).json({ error: "Lead nao encontrado." });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("leads")
+      .update({ human_takeover: enabled })
+      .eq("id", lead.id)
+      .select("id, human_takeover")
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, human_takeover: data.human_takeover });
+  } catch (error) {
+    res.status(500).json({ error: "Falha ao alterar modo.", detail: error.message });
   }
 });
 
@@ -1234,6 +1260,11 @@ app.post("/api/public/chat/:id", async (req, res) => {
     const lead = await upsertLead(bot.id, phone, visitorName, "web");
 
     await saveMessage(lead.id, "user", message);
+
+    if (lead.human_takeover) {
+      return res.json({ reply: null, human_takeover: true });
+    }
+
     const history = await getRecentHistory(lead.id, 12);
     const historyWithoutLast = history.slice(0, -1);
     const reply = await generateAiReply(bot, message, historyWithoutLast);
@@ -1249,6 +1280,44 @@ app.post("/api/public/chat/:id", async (req, res) => {
       source: src,
       detail,
     });
+  }
+});
+
+// Polling do widget: traz mensagens novas (depois de `after`) de uma sessao.
+// Usado para entregar respostas manuais do operador em modo humano.
+app.get("/api/public/messages/:id", async (req, res) => {
+  try {
+    if (!supabaseAdmin) return res.status(503).json({ error: "Sem Supabase." });
+
+    const sessionId = String(req.query.sessionId || "").trim().slice(0, 80);
+    if (!sessionId) return res.status(400).json({ error: "sessionId obrigatorio." });
+
+    const phone = `web-${sessionId}`;
+    const { data: lead } = await supabaseAdmin
+      .from("leads")
+      .select("id, human_takeover")
+      .eq("chatbot_id", req.params.id)
+      .eq("phone", phone)
+      .maybeSingle();
+
+    if (!lead) return res.json({ items: [], human_takeover: false });
+
+    let q = supabaseAdmin
+      .from("messages")
+      .select("role, content, created_at")
+      .eq("lead_id", lead.id)
+      .order("created_at", { ascending: true })
+      .limit(50);
+
+    const after = String(req.query.after || "").trim();
+    if (after) q = q.gt("created_at", after);
+
+    const { data, error } = await q;
+    if (error) return res.status(500).json({ error: error.message });
+
+    res.json({ items: data || [], human_takeover: !!lead.human_takeover });
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao buscar mensagens.", detail: error.message });
   }
 });
 
@@ -1384,6 +1453,11 @@ app.post("/webhook/evolution/:botId", async (req, res) => {
 
     const lead = await upsertLead(bot.id, number, pushName);
     await saveMessage(lead.id, "user", text);
+
+    if (lead.human_takeover) {
+      console.log(`[WEBHOOK] lead=${lead.id} em modo HUMANO - IA suprimida`);
+      return res.status(200).json({ ok: true, humanTakeover: true });
+    }
 
     const history = await getRecentHistory(lead.id, 12);
     const historyWithoutLast = history.slice(0, -1);

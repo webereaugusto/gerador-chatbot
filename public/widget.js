@@ -160,6 +160,49 @@
     return el;
   }
 
+  var lastMsgAt = new Date().toISOString();
+  var pollTimer = null;
+
+  async function pollMessages() {
+    try {
+      var url =
+        apiBase +
+        "/api/public/messages/" +
+        cfg.botId +
+        "?sessionId=" +
+        encodeURIComponent(sessionId) +
+        "&after=" +
+        encodeURIComponent(lastMsgAt);
+      var res = await fetch(url, { method: "GET" });
+      if (!res.ok) return;
+      var data = await res.json();
+      var items = (data && data.items) || [];
+      for (var i = 0; i < items.length; i++) {
+        var m = items[i];
+        if (m.role === "assistant") {
+          addMessage("bot", m.content);
+        }
+        if (m.created_at && m.created_at > lastMsgAt) {
+          lastMsgAt = m.created_at;
+        }
+      }
+    } catch (e) {
+      // silencioso — tenta de novo no proximo intervalo
+    }
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(pollMessages, 4000);
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
   function openPanel() {
     panel.classList.add("open");
     if (!body.dataset.greeted) {
@@ -169,10 +212,12 @@
     setTimeout(function () {
       input.focus();
     }, 50);
+    startPolling();
   }
 
   function closePanel() {
     panel.classList.remove("open");
+    stopPolling();
   }
 
   launcher.addEventListener("click", function () {
@@ -206,8 +251,11 @@
           "bot",
           "Ops, não consegui responder agora. Tente novamente em instantes.",
         );
-      } else {
-        addMessage("bot", data.reply || "Sem resposta.");
+      } else if (data && data.human_takeover) {
+        // operador humano assumiu — resposta chega via polling
+      } else if (data && data.reply) {
+        addMessage("bot", data.reply);
+        lastMsgAt = new Date().toISOString();
       }
     } catch (e) {
       typingEl.remove();
