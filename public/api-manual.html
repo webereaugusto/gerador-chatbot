@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manual — API externa v1 | Gerador de Chatbot</title>
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --card: #12151c;
+        --border: #232836;
+        --text: #e6e8ee;
+        --muted: #8b92a5;
+        --primary: #6366f1;
+        --code-bg: #181c25;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 15px;
+        line-height: 1.6;
+        background: var(--bg);
+        color: var(--text);
+        max-width: 880px;
+        margin-inline: auto;
+      }
+      h1 {
+        font-size: 1.75rem;
+        margin: 0 0 8px;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin: 28px 0 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 20px 0 8px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      p,
+      li {
+        color: var(--muted);
+      }
+      a {
+        color: var(--primary);
+      }
+      .lead {
+        color: var(--text);
+        margin-bottom: 24px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin: 12px 0;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: var(--card);
+        color: var(--text);
+      }
+      code,
+      pre {
+        font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+        font-size: 13px;
+      }
+      pre {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        color: #c8d0e0;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        font-size: 12px;
+        color: var(--primary);
+      }
+      .nav-top {
+        margin-bottom: 20px;
+        font-size: 14px;
+      }
+      ul {
+        padding-left: 1.25rem;
+      }
+    </style>
+  </head>
+  <body>
+    <p class="nav-top">
+      <a href="/">← Voltar ao painel</a>
+      ·
+      <a href="/api-test.html">Página de teste</a>
+    </p>
+
+    <h1>Manual da API externa (v1)</h1>
+    <p class="lead">
+      Integração <strong>somente leitura</strong> para sistemas externos (n8n, CRM, scripts). Todas as rotas
+      abaixo exigem uma <strong>chave de API</strong> gerada no painel em <strong>API</strong> (formato
+      <code>gc_live_…</code>).
+    </p>
+
+    <h2>1. Base URL e autenticação</h2>
+    <p>
+      Substitua <code>SEU_DOMINIO</code> pela URL do seu deploy (ex. <code>gerador-chatbot-alpha.vercel.app</code>).
+      Use sempre <strong>HTTPS</strong> em produção.
+    </p>
+    <p>Envie a chave em <u>um</u> destes formatos:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Opção</th>
+          <th>Header</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="pill">recomendado</span></td>
+          <td><code>Authorization: Bearer gc_live_…</code></td>
+        </tr>
+        <tr>
+          <td>alternativa</td>
+          <td><code>X-Api-Key: gc_live_…</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      <strong>401</strong> — chave ausente, inválida ou revogada.<br />
+      <strong>503</strong> — servidor sem <code>API_KEY_PEPPER</code> configurado (veja README / painel).
+    </p>
+
+    <h2>2. Endpoints</h2>
+
+    <h3><span class="pill">GET</span> /api/v1/chatbots</h3>
+    <p>Lista os chatbots da conta vinculada à chave. Não expõe chaves OpenAI, Evolution nem base de conhecimento.</p>
+    <p><strong>Resposta 200</strong> (exemplo):</p>
+    <pre>{
+  "items": [
+    {
+      "id": "uuid",
+      "name": "Franquias",
+      "createdAt": "2026-04-18T…",
+      "configured": true,
+      "webhookUrl": "https://SEU_DOMINIO/webhook/evolution/uuid"
+    }
+  ]
+}</pre>
+    <p>
+      O campo <code>webhookUrl</code> usa o host da requisição. Em integrações server-side, o host costuma ser o do
+      seu projeto na Vercel.
+    </p>
+
+    <h3><span class="pill">GET</span> /api/v1/chatbots/:chatbotId/leads</h3>
+    <p>Lista leads de um chatbot. Só retorna dados se o chatbot pertencer à mesma conta da chave.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Query</th>
+          <th>Descrição</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>limit</code></td>
+          <td>1 a 100 (padrão 50)</td>
+        </tr>
+        <tr>
+          <td><code>before</code></td>
+          <td>
+            ISO 8601 — última mensagem do lead anterior à data (paginação por <code>last_message_at</code>).
+            Use o valor <code>nextBefore</code> da resposta anterior quando <code>hasMore</code> for
+            <code>true</code>.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>Resposta 200</strong>:</p>
+    <pre>{
+  "items": [ { "id", "chatbot_id", "phone", "name", "source", "last_message_at", "created_at" } ],
+  "nextBefore": "2026-04-18T12:00:00.000Z",
+  "hasMore": false
+}</pre>
+    <p><strong>404</strong> — chatbot inexistente ou de outro usuário.</p>
+
+    <h3><span class="pill">GET</span> /api/v1/leads/:leadId/messages</h3>
+    <p>Retorna o lead (metadados) e todas as mensagens em ordem cronológica (usuário + assistente).</p>
+    <p><strong>Resposta 200</strong>:</p>
+    <pre>{
+  "lead": {
+    "id", "chatbot_id", "phone", "name", "source",
+    "last_message_at", "created_at"
+  },
+  "items": [
+    { "id", "lead_id", "role": "user" | "assistant", "content", "created_at" }
+  ]
+}</pre>
+    <p><strong>404</strong> — lead inexistente ou não pertence à sua conta.</p>
+
+    <h2>3. Exemplos com curl</h2>
+    <p>Listar chatbots:</p>
+    <pre>curl -sS -H "Authorization: Bearer gc_live_SUA_CHAVE" \
+  "https://SEU_DOMINIO/api/v1/chatbots"</pre>
+    <p>Listar leads (com limite):</p>
+    <pre>curl -sS -H "X-Api-Key: gc_live_SUA_CHAVE" \
+  "https://SEU_DOMINIO/api/v1/chatbots/UUID_DO_CHATBOT/leads?limit=20"</pre>
+    <p>Próxima página de leads:</p>
+    <pre>curl -sS -H "Authorization: Bearer gc_live_SUA_CHAVE" \
+  "https://SEU_DOMINIO/api/v1/chatbots/UUID_DO_CHATBOT/leads?limit=20&amp;before=VALOR_NEXT_BEFORE"</pre>
+    <p>Mensagens de um lead:</p>
+    <pre>curl -sS -H "Authorization: Bearer gc_live_SUA_CHAVE" \
+  "https://SEU_DOMINIO/api/v1/leads/UUID_DO_LEAD/messages"</pre>
+
+    <h2>4. CORS</h2>
+    <p>
+      As rotas <code>/api/v1/*</code> enviam <code>Access-Control-Allow-Origin: *</code>, permitindo chamadas a partir
+      de outras origens (útil para testes no navegador). Em produção, prefira chamar a API a partir do seu backend
+      para não expor a chave no front-end público.
+    </p>
+
+    <h2>5. Segurança</h2>
+    <ul>
+      <li>Trate a chave como senha: não commite em repositórios nem em prints.</li>
+      <li>Revogue no painel se vazar.</li>
+      <li>A API v1 é <strong>apenas GET</strong> — não altera dados.</li>
+    </ul>
+
+    <p class="nav-top" style="margin-top: 32px">
+      <a href="/api-test.html">Abrir página de teste interativa →</a>
+    </p>
+  </body>
+</html>

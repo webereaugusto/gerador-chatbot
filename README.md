@@ -150,6 +150,11 @@ curl -s -H "X-Api-Key: gc_live_SUA_CHAVE" \
   "https://SEU-PROJETO.vercel.app/api/v1/chatbots/UUID_DO_BOT/leads?limit=50&before=2026-04-18T12:00:00.000Z"
 ```
 
+Documentacao HTML no proprio app (apos deploy):
+
+- `/api-manual.html` — manual completo da API v1
+- `/api-test.html` — pagina simples para testar GETs com sua chave no navegador
+
 ## Observacoes
 
 - Credenciais do chatbot (OpenAI e Evolution API Key) sao salvas em texto no

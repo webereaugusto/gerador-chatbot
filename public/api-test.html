@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teste API v1 | Gerador de Chatbot</title>
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --card: #12151c;
+        --border: #232836;
+        --text: #e6e8ee;
+        --muted: #8b92a5;
+        --primary: #6366f1;
+        --danger: #f87171;
+        --ok: #4ade80;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 14px;
+        background: var(--bg);
+        color: var(--text);
+        max-width: 920px;
+        margin-inline: auto;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 8px;
+      }
+      .muted {
+        color: var(--muted);
+        margin: 0 0 20px;
+      }
+      label {
+        display: block;
+        margin-top: 12px;
+        margin-bottom: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      input[type="text"],
+      input[type="password"],
+      input[type="number"] {
+        width: 100%;
+        max-width: 100%;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--text);
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+        align-items: center;
+      }
+      button {
+        padding: 10px 16px;
+        border-radius: 8px;
+        border: none;
+        background: var(--primary);
+        color: #fff;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button:hover {
+        filter: brightness(1.08);
+      }
+      button.secondary {
+        background: var(--card);
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+      pre#out {
+        margin-top: 16px;
+        padding: 16px;
+        border-radius: 10px;
+        background: #181c25;
+        border: 1px solid var(--border);
+        overflow: auto;
+        max-height: 55vh;
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      #statusLine {
+        margin-top: 12px;
+        font-size: 13px;
+      }
+      #statusLine.ok {
+        color: var(--ok);
+      }
+      #statusLine.err {
+        color: var(--danger);
+      }
+      a {
+        color: var(--primary);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 640px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <p><a href="/">← Painel</a> · <a href="/api-manual.html">Manual da API</a></p>
+    <h1>Teste da API externa (v1)</h1>
+    <p class="muted">
+      Preencha a URL base (mesmo site do painel), cole a chave <code>gc_live_…</code> e use os botões. Os dados
+      aparecem abaixo em JSON.
+    </p>
+
+    <label for="baseUrl">URL base (sem barra no final)</label>
+    <input type="text" id="baseUrl" placeholder="https://gerador-chatbot-alpha.vercel.app" />
+
+    <label for="apiKey">Chave de API</label>
+    <input type="password" id="apiKey" placeholder="gc_live_..." autocomplete="off" />
+
+    <div class="grid2">
+      <div>
+        <label for="chatbotId">ID do chatbot (UUID)</label>
+        <input type="text" id="chatbotId" placeholder="obtenha em GET chatbots" />
+      </div>
+      <div>
+        <label for="leadId">ID do lead (UUID)</label>
+        <input type="text" id="leadId" placeholder="obtenha na lista de leads" />
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <label for="limit">Limite (leads)</label>
+        <input type="number" id="limit" value="20" min="1" max="100" />
+      </div>
+      <div>
+        <label for="before">before (ISO, paginação opcional)</label>
+        <input type="text" id="before" placeholder="2026-04-18T12:00:00.000Z" />
+      </div>
+    </div>
+
+    <div class="row">
+      <button type="button" id="btnChatbots">GET /api/v1/chatbots</button>
+      <button type="button" id="btnLeads">GET …/chatbots/:id/leads</button>
+      <button type="button" id="btnMessages">GET …/leads/:id/messages</button>
+      <button type="button" class="secondary" id="btnClear">Limpar saída</button>
+    </div>
+
+    <div id="statusLine"></div>
+    <pre id="out">{}</pre>
+
+    <script>
+      (function () {
+        var baseInput = document.getElementById("baseUrl");
+        var keyInput = document.getElementById("apiKey");
+        var out = document.getElementById("out");
+        var statusLine = document.getElementById("statusLine");
+
+        baseInput.value =
+          window.location.origin === "null" || !window.location.origin
+            ? ""
+            : window.location.origin.replace(/\/$/, "");
+
+        function base() {
+          return (baseInput.value || "").trim().replace(/\/$/, "");
+        }
+
+        function headers() {
+          var k = (keyInput.value || "").trim();
+          if (!k) throw new Error("Informe a chave gc_live_…");
+          return {
+            Accept: "application/json",
+            Authorization: "Bearer " + k,
+          };
+        }
+
+        function setStatus(ok, text) {
+          statusLine.className = ok ? "ok" : "err";
+          statusLine.textContent = text;
+        }
+
+        async function req(path) {
+          var b = base();
+          if (!b) throw new Error("Informe a URL base.");
+          var url = b + path;
+          var res = await fetch(url, { headers: headers() });
+          var ct = res.headers.get("content-type") || "";
+          var body;
+          try {
+            body = ct.includes("application/json") ? await res.json() : await res.text();
+          } catch (e) {
+            body = "(corpo ilegível)";
+          }
+          return { res: res, body: body };
+        }
+
+        function show(data) {
+          out.textContent =
+            typeof data.body === "string" ? data.body : JSON.stringify(data.body, null, 2);
+          setStatus(
+            data.res.ok,
+            "HTTP " + data.res.status + " " + data.res.statusText + " — " + (data.res.ok ? "ok" : "erro"),
+          );
+        }
+
+        document.getElementById("btnChatbots").addEventListener("click", async function () {
+          try {
+            show(await req("/api/v1/chatbots"));
+          } catch (e) {
+            setStatus(false, e.message || String(e));
+            out.textContent = "{}";
+          }
+        });
+
+        document.getElementById("btnLeads").addEventListener("click", async function () {
+          try {
+            var id = (document.getElementById("chatbotId").value || "").trim();
+            if (!id) throw new Error("Preencha o ID do chatbot.");
+            var lim = parseInt(document.getElementById("limit").value, 10) || 20;
+            lim = Math.min(100, Math.max(1, lim));
+            var bef = (document.getElementById("before").value || "").trim();
+            var q = "?limit=" + encodeURIComponent(lim);
+            if (bef) q += "&before=" + encodeURIComponent(bef);
+            show(await req("/api/v1/chatbots/" + encodeURIComponent(id) + "/leads" + q));
+          } catch (e) {
+            setStatus(false, e.message || String(e));
+            out.textContent = "{}";
+          }
+        });
+
+        document.getElementById("btnMessages").addEventListener("click", async function () {
+          try {
+            var id = (document.getElementById("leadId").value || "").trim();
+            if (!id) throw new Error("Preencha o ID do lead.");
+            show(await req("/api/v1/leads/" + encodeURIComponent(id) + "/messages"));
+          } catch (e) {
+            setStatus(false, e.message || String(e));
+            out.textContent = "{}";
+          }
+        });
+
+        document.getElementById("btnClear").addEventListener("click", function () {
+          out.textContent = "{}";
+          statusLine.textContent = "";
+          statusLine.className = "";
+        });
+      })();
+    </script>
+  </body>
+</html>
