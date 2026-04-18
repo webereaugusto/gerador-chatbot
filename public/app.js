@@ -362,6 +362,38 @@ async function loadChatbots() {
   populateLeadsBotSelect();
 }
 
+function formatRelativeTime(iso) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin < 1) return "agora";
+  if (diffMin < 60) return `há ${diffMin} min`;
+  const diffH = Math.round(diffMin / 60);
+  if (diffH < 24) return `há ${diffH} h`;
+  const diffD = Math.round(diffH / 24);
+  if (diffD < 30) return `há ${diffD} d`;
+  return date.toLocaleDateString("pt-BR");
+}
+
+const ICONS = {
+  bot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="3"/><path d="M12 2v6"/><circle cx="9" cy="14" r="1.2" fill="currentColor"/><circle cx="15" cy="14" r="1.2" fill="currentColor"/><path d="M8 18h8"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  cpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>',
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>',
+  test: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2h8M10 2v7L5 21h14L14 9V2"/></svg>',
+  widget: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+  leads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>',
+  power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>',
+  qrcode: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14h1M14 20h1M20 17v4M17 20h4"/></svg>',
+};
+
 function renderBots() {
   const list = document.getElementById("botList");
 
@@ -373,92 +405,83 @@ function renderBots() {
 
   list.innerHTML = cachedBots
     .map((bot) => {
-      const prompt = bot.systemPrompt
-        ? bot.systemPrompt.slice(0, 100) + (bot.systemPrompt.length > 100 ? "..." : "")
-        : "-";
-      const knowledge = bot.knowledgeBase
-        ? bot.knowledgeBase.slice(0, 100) + (bot.knowledgeBase.length > 100 ? "..." : "")
-        : "Sem base de conhecimento.";
-
       const status = bot.whatsappConnectionStatus || "disconnected";
+
       const statusMap = {
-        open: {
-          label: "WhatsApp conectado",
-          cls: "wa-status wa-status-ok",
-          icon: "✓",
-        },
-        qr: {
-          label: "Aguardando leitura do QR",
-          cls: "wa-status wa-status-warn",
-          icon: "⧗",
-        },
-        connecting: {
-          label: "Pareando com WhatsApp...",
-          cls: "wa-status wa-status-warn",
-          icon: "⧗",
-        },
-        disconnected: {
-          label: "WhatsApp desconectado",
-          cls: "wa-status wa-status-off",
-          icon: "×",
-        },
+        open: { label: "CONECTADO", tone: "ok", avatarIcon: ICONS.bot },
+        qr: { label: "AGUARDANDO QR", tone: "warn", avatarIcon: ICONS.qrcode },
+        connecting: { label: "CONECTANDO...", tone: "warn", avatarIcon: ICONS.qrcode },
+        disconnected: { label: "WHATSAPP DESCONECTADO", tone: "off", avatarIcon: ICONS.alert },
       };
       const s = statusMap[status] || statusMap.disconnected;
 
-      const connectButton =
+      const relTime = formatRelativeTime(bot.whatsappConnectedAt);
+      const subtitleParts = [];
+      if (bot.whatsappTestFilterEnabled) subtitleParts.push("FILTRO DE TESTE");
+      if (bot.humanizeEnabled === false) subtitleParts.push("SEM HUMANIZACAO");
+      const subtitle = subtitleParts.join(" · ");
+
+      const modelLabel = bot.openaiModel || "gpt-4o-mini";
+
+      const primaryAction =
         status === "open"
-          ? `<button class="btn-ghost danger" data-action="disconnect" data-id="${bot.id}">Desconectar WhatsApp</button>`
+          ? `<button class="bot-primary-action danger" data-action="disconnect" data-id="${bot.id}">${ICONS.power}<span>DESCONECTAR WHATSAPP</span></button>`
           : status === "qr" || status === "connecting"
-            ? `<button class="btn-primary" data-action="connect" data-id="${bot.id}">Ver QR novamente</button>`
-            : `<button class="btn-primary" data-action="connect" data-id="${bot.id}">Conectar WhatsApp</button>`;
+            ? `<button class="bot-primary-action warn" data-action="connect" data-id="${bot.id}">${ICONS.refresh}<span>VER QR NOVAMENTE</span></button>`
+            : `<button class="bot-primary-action" data-action="connect" data-id="${bot.id}">${ICONS.link}<span>CONECTAR WHATSAPP</span></button>`;
+
+      const hint = bot.hasOpenAiKey ? "Chave OpenAI salva" : "Chave OpenAI pendente";
+      const lastInfo = relTime
+        ? `Última conexão ${relTime}`
+        : status === "disconnected"
+          ? "Nunca conectado"
+          : "Aguardando pareamento";
 
       return `
-        <div class="bot-card">
-          <div class="bot-card-header">
-            <div class="bot-card-name">${escapeHtml(bot.name)}</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              ${
-                bot.whatsappTestFilterEnabled
-                  ? `<span class="badge warn" title="Só responde ao número ${escapeHtml(bot.whatsappTestPhone || "")}">filtro teste</span>`
-                  : ""
-              }
+        <div class="bot-card bot-card-${s.tone}">
+          <div class="bot-card-top">
+            <div class="bot-card-heading">
+              <div class="bot-card-name">${escapeHtml(bot.name)}</div>
+              <div class="bot-card-status">
+                <span class="status-dot status-dot-${s.tone}"></span>
+                <span class="status-label">${s.label}</span>
+                ${subtitle ? `<span class="status-sep">·</span><span class="status-sub">${escapeHtml(subtitle)}</span>` : ""}
+              </div>
+            </div>
+            <div class="bot-avatar bot-avatar-${s.tone}">${s.avatarIcon}</div>
+          </div>
+
+          <div class="bot-info-grid">
+            <div class="bot-info-tile">
+              <span class="info-icon">${ICONS.clock}</span>
+              <div class="info-text">
+                <div class="info-label">${status === "open" ? "Ativo" : "Status"}</div>
+                <div class="info-value">${escapeHtml(lastInfo)}</div>
+              </div>
+            </div>
+            <div class="bot-info-tile">
+              <span class="info-icon">${ICONS.cpu}</span>
+              <div class="info-text">
+                <div class="info-label">Modelo</div>
+                <div class="info-value" title="${escapeHtml(hint)}">${escapeHtml(modelLabel)}</div>
+              </div>
             </div>
           </div>
 
-          <div class="${s.cls}">
-            <span class="wa-status-icon">${s.icon}</span>
-            <div class="wa-status-text">
-              <div class="wa-status-title">${s.label}</div>
-              <div class="wa-status-sub">${
-                bot.whatsappConnectedAt
-                  ? "última conexão: " + new Date(bot.whatsappConnectedAt).toLocaleString("pt-BR")
-                  : status === "disconnected"
-                    ? "clique em Conectar WhatsApp para escanear o QR"
-                    : "escaneie o QR com o WhatsApp do celular"
-              }</div>
-            </div>
-          </div>
+          ${primaryAction}
 
-          <div class="bot-card-meta">
-            <div class="meta-item">
-              <span class="meta-label">OpenAI</span>
-              <span class="meta-value">${bot.hasOpenAiKey ? "chave salva" : "pendente"}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Prompt</span>
-              <span class="meta-value" title="${escapeHtml(bot.systemPrompt || "")}">${escapeHtml(prompt)}</span>
-            </div>
+          <div class="bot-action-row">
+            <button class="bot-action-btn" data-action="test" data-id="${bot.id}">${ICONS.test}<span>TESTAR</span></button>
+            <button class="bot-action-btn" data-action="widget" data-id="${bot.id}">${ICONS.widget}<span>WIDGET</span></button>
+            <button class="bot-action-btn" data-action="leads" data-id="${bot.id}">${ICONS.leads}<span>LEADS</span></button>
           </div>
-
-          <div class="bot-card-field"><strong>Base:</strong> ${escapeHtml(knowledge)}</div>
 
           <div class="bot-card-footer">
-            ${connectButton}
-            <button class="btn-ghost" data-action="test" data-id="${bot.id}">Testar</button>
-            <button class="btn-ghost" data-action="widget" data-id="${bot.id}">Widget</button>
-            <button class="btn-ghost" data-action="leads" data-id="${bot.id}">Leads</button>
-            <button class="btn-ghost" data-action="edit" data-id="${bot.id}">Editar</button>
-            <button class="btn-ghost danger" data-action="delete" data-id="${bot.id}">Excluir</button>
+            <div class="bot-footer-icons">
+              <button class="icon-only-btn" data-action="edit" data-id="${bot.id}" title="Editar">${ICONS.edit}</button>
+              <button class="icon-only-btn danger" data-action="delete" data-id="${bot.id}" title="Excluir">${ICONS.trash}</button>
+            </div>
+            <button class="bot-footer-cta" data-action="edit" data-id="${bot.id}">CONFIGURAR</button>
           </div>
         </div>
       `;
