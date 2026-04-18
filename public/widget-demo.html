@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pré-visualização do Widget</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+        color: #1e1e2e;
+        min-height: 100vh;
+      }
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 60px 24px;
+      }
+      h1 { font-size: 32px; margin: 0 0 8px; }
+      .muted { color: #6b7280; }
+      .hero {
+        background: #fff;
+        border-radius: 14px;
+        padding: 32px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+        margin-top: 32px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-top: 24px;
+      }
+      .card {
+        padding: 18px;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+        background: #fafafa;
+      }
+      .card h3 { margin: 0 0 8px; font-size: 16px; }
+      .card p { margin: 0; font-size: 13px; color: #6b7280; line-height: 1.5; }
+      .note {
+        margin-top: 24px;
+        padding: 14px 16px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-radius: 10px;
+        color: #9a3412;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Pré-visualização do widget</h1>
+      <p class="muted">
+        Esta página simula um site comum. O widget aparece no canto da tela.
+        Clique no botão para conversar.
+      </p>
+
+      <div class="hero">
+        <h2 style="margin-top:0">Sua empresa aqui</h2>
+        <p>
+          Este é um exemplo de layout para ver como o widget se comporta no canto
+          inferior. Ajuste as opções no painel e recarregue para aplicar mudanças.
+        </p>
+
+        <div class="grid">
+          <div class="card">
+            <h3>Horário</h3>
+            <p>Seg a Sex, das 9h às 18h.</p>
+          </div>
+          <div class="card">
+            <h3>Contato</h3>
+            <p>contato@exemplo.com</p>
+          </div>
+          <div class="card">
+            <h3>Endereço</h3>
+            <p>Rua Exemplo, 123 — Centro</p>
+          </div>
+        </div>
+
+        <div class="note" id="note"></div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var botId = params.get("botId");
+        var note = document.getElementById("note");
+
+        if (!botId) {
+          note.textContent =
+            "Nenhum botId informado. Abra a pré-visualização pelo painel (botão Widget no card do chatbot).";
+          return;
+        }
+
+        note.textContent =
+          "Widget carregado com botId " + botId + ". Clique no botão de chat no canto para testar.";
+
+        var s = document.createElement("script");
+        s.src = "/widget.js";
+        s.async = true;
+        s.setAttribute("data-bot-id", botId);
+        if (params.get("title")) s.setAttribute("data-title", params.get("title"));
+        if (params.get("subtitle")) s.setAttribute("data-subtitle", params.get("subtitle"));
+        if (params.get("greeting")) s.setAttribute("data-greeting", params.get("greeting"));
+        if (params.get("color")) s.setAttribute("data-color", params.get("color"));
+        if (params.get("position")) s.setAttribute("data-position", params.get("position"));
+        document.body.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

@@ -32,10 +32,15 @@ create table if not exists public.leads (
   chatbot_id uuid not null references public.chatbots(id) on delete cascade,
   phone text not null,
   name text,
+  source text not null default 'whatsapp',
   last_message_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   unique (chatbot_id, phone)
 );
+
+-- migracao idempotente (caso tabela ja exista sem a coluna source)
+alter table public.leads
+  add column if not exists source text not null default 'whatsapp';
 
 create index if not exists leads_chatbot_id_idx
   on public.leads(chatbot_id);

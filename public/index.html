@@ -250,6 +250,61 @@
       </div>
     </div>
 
+    <!-- Modal Widget -->
+    <div class="modal-backdrop" id="widgetModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Widget para seu site</h2>
+          <button class="icon-btn" id="closeWidgetModalBtn" aria-label="Fechar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <p class="muted">
+          Personalize e cole o código abaixo antes do <code>&lt;/body&gt;</code> do seu site.
+          As conversas aparecem em <strong>Leads</strong> com origem <code>web</code>.
+        </p>
+
+        <div class="form-grid">
+          <div>
+            <label for="widgetTitle">Título</label>
+            <input id="widgetTitle" type="text" value="Atendimento" />
+          </div>
+          <div>
+            <label for="widgetSubtitle">Subtítulo</label>
+            <input id="widgetSubtitle" type="text" value="Estamos online. Como posso ajudar?" />
+          </div>
+          <div class="form-grid-full">
+            <label for="widgetGreeting">Mensagem de saudação</label>
+            <input id="widgetGreeting" type="text" value="Olá! Em que posso te ajudar hoje?" />
+          </div>
+          <div>
+            <label for="widgetColor">Cor principal</label>
+            <input id="widgetColor" type="text" value="#6366f1" />
+          </div>
+          <div>
+            <label for="widgetPosition">Posição</label>
+            <select id="widgetPosition">
+              <option value="right">Direita</option>
+              <option value="left">Esquerda</option>
+            </select>
+          </div>
+        </div>
+
+        <label>Código para embed</label>
+        <textarea id="widgetEmbedCode" readonly style="min-height: 130px; font-family: monospace; font-size: 12px"></textarea>
+
+        <div class="actions-row">
+          <button class="btn-primary" id="copyWidgetCodeBtn">Copiar código</button>
+          <button class="btn-ghost" id="previewWidgetBtn">Abrir pré-visualização</button>
+          <span id="widgetStatus" class="status-text"></span>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal Teste -->
     <div class="modal-backdrop" id="testModal">
       <div class="modal">

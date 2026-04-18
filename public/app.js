@@ -314,6 +314,7 @@ function renderBots() {
 
           <div class="bot-card-footer">
             <button class="btn-ghost" data-action="test" data-id="${bot.id}">Testar</button>
+            <button class="btn-ghost" data-action="widget" data-id="${bot.id}">Widget</button>
             <button class="btn-ghost" data-action="leads" data-id="${bot.id}">Leads</button>
             <button class="btn-ghost" data-action="edit" data-id="${bot.id}">Editar</button>
             <button class="btn-ghost danger" data-action="delete" data-id="${bot.id}">Excluir</button>
@@ -347,6 +348,8 @@ document.getElementById("botList").addEventListener("click", async (e) => {
     if (res.ok) await loadChatbots();
   } else if (action === "test") {
     openTestModal(bot);
+  } else if (action === "widget") {
+    openWidgetModal(bot);
   } else if (action === "leads") {
     document.querySelector('.nav-item[data-view="leads"]').click();
     document.getElementById("leadsBotSelect").value = bot.id;
@@ -437,6 +440,94 @@ async function runTest() {
 }
 
 document.getElementById("runTestBtn").addEventListener("click", runTest);
+
+// ---------------------------------------------------------------
+// Widget embed
+// ---------------------------------------------------------------
+const widgetModal = document.getElementById("widgetModal");
+let currentWidgetBot = null;
+
+function widgetEmbedCode() {
+  const bot = currentWidgetBot;
+  if (!bot) return "";
+  const base = window.location.origin;
+  const title = document.getElementById("widgetTitle").value || "Atendimento";
+  const subtitle = document.getElementById("widgetSubtitle").value || "";
+  const greeting = document.getElementById("widgetGreeting").value || "";
+  const color = document.getElementById("widgetColor").value || "#6366f1";
+  const position = document.getElementById("widgetPosition").value || "right";
+
+  return `<script
+  src="${base}/widget.js"
+  data-bot-id="${bot.id}"
+  data-title="${escapeAttr(title)}"
+  data-subtitle="${escapeAttr(subtitle)}"
+  data-greeting="${escapeAttr(greeting)}"
+  data-color="${escapeAttr(color)}"
+  data-position="${position}"
+  async><\/script>`;
+}
+
+function escapeAttr(str) {
+  return String(str || "").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function refreshWidgetCode() {
+  document.getElementById("widgetEmbedCode").value = widgetEmbedCode();
+}
+
+function openWidgetModal(bot) {
+  currentWidgetBot = bot;
+  document.getElementById("widgetTitle").value = bot.name || "Atendimento";
+  document.getElementById("widgetSubtitle").value = "Estamos online. Como posso ajudar?";
+  document.getElementById("widgetGreeting").value = "Olá! Em que posso te ajudar hoje?";
+  document.getElementById("widgetColor").value = "#6366f1";
+  document.getElementById("widgetPosition").value = "right";
+  document.getElementById("widgetStatus").innerText = "";
+  document.getElementById("widgetStatus").className = "status-text";
+  refreshWidgetCode();
+  widgetModal.classList.add("open");
+}
+
+document.getElementById("closeWidgetModalBtn").addEventListener("click", () => {
+  widgetModal.classList.remove("open");
+});
+widgetModal.addEventListener("click", (e) => {
+  if (e.target === widgetModal) widgetModal.classList.remove("open");
+});
+
+["widgetTitle", "widgetSubtitle", "widgetGreeting", "widgetColor", "widgetPosition"].forEach(
+  (id) => {
+    document.getElementById(id).addEventListener("input", refreshWidgetCode);
+    document.getElementById(id).addEventListener("change", refreshWidgetCode);
+  },
+);
+
+document.getElementById("copyWidgetCodeBtn").addEventListener("click", async () => {
+  const code = document.getElementById("widgetEmbedCode").value;
+  const statusEl = document.getElementById("widgetStatus");
+  try {
+    await navigator.clipboard.writeText(code);
+    statusEl.className = "status-text ok";
+    statusEl.innerText = "Código copiado.";
+  } catch (e) {
+    statusEl.className = "status-text error";
+    statusEl.innerText = "Não foi possível copiar.";
+  }
+});
+
+document.getElementById("previewWidgetBtn").addEventListener("click", () => {
+  if (!currentWidgetBot) return;
+  const params = new URLSearchParams({
+    botId: currentWidgetBot.id,
+    title: document.getElementById("widgetTitle").value,
+    subtitle: document.getElementById("widgetSubtitle").value,
+    greeting: document.getElementById("widgetGreeting").value,
+    color: document.getElementById("widgetColor").value,
+    position: document.getElementById("widgetPosition").value,
+  });
+  window.open(`/widget-demo.html?${params.toString()}`, "_blank");
+});
 
 // ---------------------------------------------------------------
 // Leads e conversas

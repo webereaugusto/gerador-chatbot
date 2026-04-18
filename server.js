@@ -29,6 +29,21 @@ const supabaseAdmin = missingSupabase
     });
 
 app.use(express.json({ limit: "1mb" }));
+
+// CORS aberto apenas para rotas publicas do widget.
+app.use((req, res, next) => {
+  if (
+    req.path.startsWith("/api/public/") ||
+    req.path === "/widget.js"
+  ) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") return res.status(204).end();
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 const fallbackPrompt =
@@ -353,9 +368,65 @@ app.get("/api/leads/:id/messages", requireUser, async (req, res) => {
 });
 
 // ---------------------------------------------------------------
+// Widget publico (embed em sites)
+// ---------------------------------------------------------------
+app.get("/api/public/chatbots/:id", async (req, res) => {
+  if (!supabaseAdmin) return res.status(503).json({ error: "Sem Supabase." });
+
+  const { data: bot } = await supabaseAdmin
+    .from("chatbots")
+    .select("id, name")
+    .eq("id", req.params.id)
+    .single();
+
+  if (!bot) return res.status(404).json({ error: "Chatbot nao encontrado." });
+  res.json({ id: bot.id, name: bot.name });
+});
+
+app.post("/api/public/chat/:id", async (req, res) => {
+  try {
+    if (!supabaseAdmin) return res.status(503).json({ error: "Sem Supabase." });
+
+    const { data: bot } = await supabaseAdmin
+      .from("chatbots")
+      .select("*")
+      .eq("id", req.params.id)
+      .single();
+
+    if (!bot) return res.status(404).json({ error: "Chatbot nao encontrado." });
+    if (!bot.openai_api_key) {
+      return res.status(400).json({ error: "Chatbot sem chave OpenAI." });
+    }
+
+    const sessionId = String(req.body?.sessionId || "").trim().slice(0, 80);
+    const message = String(req.body?.message || "").trim().slice(0, 4000);
+    const visitorName = String(req.body?.name || "").trim().slice(0, 120) || null;
+
+    if (!sessionId || !message) {
+      return res.status(400).json({ error: "sessionId e message sao obrigatorios." });
+    }
+
+    const phone = `web-${sessionId}`;
+    const lead = await upsertLead(bot.id, phone, visitorName, "web");
+
+    await saveMessage(lead.id, "user", message);
+    const history = await getRecentHistory(lead.id, 12);
+    const historyWithoutLast = history.slice(0, -1);
+    const reply = await generateAiReply(bot, message, historyWithoutLast);
+    await saveMessage(lead.id, "assistant", reply);
+
+    res.json({ reply });
+  } catch (error) {
+    const src = error.source || "unknown";
+    console.error(`[WIDGET ${src}] ${error.message}`);
+    res.status(500).json({ error: "Erro ao processar mensagem.", source: src });
+  }
+});
+
+// ---------------------------------------------------------------
 // Webhook da Evolution
 // ---------------------------------------------------------------
-async function upsertLead(chatbotId, phone, pushName) {
+async function upsertLead(chatbotId, phone, pushName, source = "whatsapp") {
   const { data: existing } = await supabaseAdmin
     .from("leads")
     .select("*")
@@ -384,6 +455,7 @@ async function upsertLead(chatbotId, phone, pushName) {
       chatbot_id: chatbotId,
       phone,
       name: pushName || null,
+      source,
     })
     .select("*")
     .single();
