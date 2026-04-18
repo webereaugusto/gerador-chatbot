@@ -281,8 +281,41 @@ function setFieldText(id, text) {
   if (el) el.innerText = text;
 }
 
+function clampTemp(v) {
+  const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
+  if (Number.isNaN(n)) return 0.6;
+  return Math.min(1.5, Math.max(0, n));
+}
+
+function syncTemperatureUIFromValue(raw) {
+  const v = clampTemp(raw);
+  const hidden = document.getElementById("botTemperature");
+  const range = document.getElementById("botTemperatureRange");
+  const disp = document.getElementById("botTemperatureDisplay");
+  if (hidden) hidden.value = String(v);
+  if (range) {
+    range.value = String(v);
+    range.setAttribute("aria-valuenow", String(v));
+  }
+  if (disp) disp.textContent = v.toFixed(1);
+}
+
+function updateBotModalSubtitle() {
+  const name = String(getFieldValue("botName", "") || "").trim();
+  const el = document.getElementById("botModalSubtitleText");
+  if (el) el.textContent = name ? `AGENTE: ${name}` : "AGENTE: —";
+}
+
+function updatePromptCharCount() {
+  const ta = document.getElementById("botSystemPrompt");
+  const cnt = document.getElementById("botSystemPromptCount");
+  if (!ta || !cnt) return;
+  const n = (ta.value || "").length;
+  cnt.textContent = `${n} / 4000`;
+}
+
 function openBotModal(bot) {
-  setFieldText("botModalTitle", bot ? "Editar chatbot" : "Novo chatbot");
+  setFieldText("botModalTitle", bot ? "Configurar chatbot" : "Novo chatbot");
   setFieldValue("botId", bot?.id || "");
   setFieldValue("botName", bot?.name || "");
   setFieldValue("botOpenAiKey", "");
@@ -295,7 +328,9 @@ function openBotModal(bot) {
   setFieldValue("botWhatsappTestPhone", bot?.whatsappTestPhone || "");
 
   setFieldValue("botOpenAiModel", bot?.openaiModel || "gpt-4o-mini");
-  setFieldValue("botTemperature", bot?.temperature ?? 0.6);
+  const temp = bot?.temperature ?? 0.6;
+  setFieldValue("botTemperature", temp);
+  syncTemperatureUIFromValue(temp);
   setFieldValue("botMaxTokens", bot?.maxTokens ?? 400);
   setFieldValue(
     "botHumanizeEnabled",
@@ -307,10 +342,21 @@ function openBotModal(bot) {
     bot?.hasOpenAiKey ? "Chave salva. Preencha apenas para substituir." : "",
   );
 
+  const keyIn = document.getElementById("botOpenAiKey");
+  const keyTog = document.getElementById("botOpenAiKeyToggle");
+  if (keyIn) keyIn.type = "password";
+  if (keyTog) {
+    keyTog.classList.remove("is-visible");
+    keyTog.setAttribute("aria-label", "Mostrar chave");
+  }
+
+  updateBotModalSubtitle();
+  updatePromptCharCount();
+
   const statusEl = document.getElementById("botStatus");
   if (statusEl) {
     statusEl.innerText = "";
-    statusEl.className = "status-text";
+    statusEl.className = "status-text config-bot-status";
   }
   botModal.classList.add("open");
 }
@@ -324,6 +370,53 @@ document.getElementById("closeBotModalBtn").addEventListener("click", closeBotMo
 botModal.addEventListener("click", (e) => {
   if (e.target === botModal) closeBotModal();
 });
+
+function initBotConfigModal() {
+  if (!botModal) return;
+
+  const cancel = document.getElementById("cancelBotBtn");
+  if (cancel) cancel.addEventListener("click", closeBotModal);
+
+  const range = document.getElementById("botTemperatureRange");
+  if (range) {
+    range.addEventListener("input", () => {
+      syncTemperatureUIFromValue(range.value);
+    });
+  }
+
+  const toggle = document.getElementById("botOpenAiKeyToggle");
+  const keyInput = document.getElementById("botOpenAiKey");
+  if (toggle && keyInput) {
+    toggle.addEventListener("click", () => {
+      const showPlain = keyInput.type === "password";
+      keyInput.type = showPlain ? "text" : "password";
+      toggle.classList.toggle("is-visible", showPlain);
+      toggle.setAttribute("aria-label", showPlain ? "Ocultar chave" : "Mostrar chave");
+    });
+  }
+
+  const prompt = document.getElementById("botSystemPrompt");
+  if (prompt) prompt.addEventListener("input", updatePromptCharCount);
+
+  const nameInput = document.getElementById("botName");
+  if (nameInput) nameInput.addEventListener("input", updateBotModalSubtitle);
+
+  botModal.querySelectorAll(".config-capsule-trigger").forEach((trigger) => {
+    trigger.addEventListener("click", () => {
+      const section = trigger.closest(".config-capsule");
+      const panelId = trigger.getAttribute("aria-controls");
+      const panel = panelId ? document.getElementById(panelId) : null;
+      if (!section || !panel) return;
+      section.classList.toggle("is-open");
+      const open = section.classList.contains("is-open");
+      trigger.setAttribute("aria-expanded", open);
+      if (open) panel.removeAttribute("hidden");
+      else panel.setAttribute("hidden", "");
+    });
+  });
+}
+
+initBotConfigModal();
 
 document.getElementById("closeTestModalBtn").addEventListener("click", () => {
   testModal.classList.remove("open");
@@ -566,7 +659,7 @@ async function saveBot() {
 
   const statusEl = document.getElementById("botStatus");
   if (statusEl) {
-    statusEl.className = "status-text";
+    statusEl.className = "status-text config-bot-status";
     statusEl.innerText = "Salvando...";
   }
 
@@ -578,7 +671,7 @@ async function saveBot() {
 
   if (!res.ok) {
     if (statusEl) {
-      statusEl.className = "status-text error";
+      statusEl.className = "status-text error config-bot-status";
       statusEl.innerText = data.error || "Falha ao salvar.";
     } else {
       alert(data.error || "Falha ao salvar.");
@@ -587,7 +680,7 @@ async function saveBot() {
   }
 
   if (statusEl) {
-    statusEl.className = "status-text ok";
+    statusEl.className = "status-text ok config-bot-status";
     statusEl.innerText = "Salvo.";
   }
   await loadChatbots();

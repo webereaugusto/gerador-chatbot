@@ -249,9 +249,20 @@
 
     <!-- Modal Chatbot (novo/editar) -->
     <div class="modal-backdrop" id="botModal">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 id="botModalTitle">Novo chatbot</h2>
+      <div class="modal modal-config-bot">
+        <div class="config-bot-header">
+          <div class="config-bot-header-main">
+            <h2 id="botModalTitle">Novo chatbot</h2>
+            <p id="botModalSubtitle" class="config-bot-subtitle">
+              <span class="config-bot-dot" aria-hidden="true"></span>
+              <span id="botModalSubtitleText">AGENTE: —</span>
+            </p>
+            <span id="botStatus" class="status-text config-bot-status"></span>
+          </div>
+          <div class="config-bot-header-actions">
+            <button type="button" class="btn-ghost" id="cancelBotBtn">Cancelar</button>
+            <button type="button" class="btn-primary" id="saveBotBtn">Salvar alterações</button>
+          </div>
           <button class="icon-btn" id="closeBotModalBtn" aria-label="Fechar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -260,84 +271,226 @@
           </button>
         </div>
 
-        <input type="hidden" id="botId" />
+        <div class="config-bot-body">
+          <input type="hidden" id="botId" />
 
-        <label for="botName">Nome</label>
-        <input id="botName" type="text" placeholder="Atendimento Loja" />
-
-        <div class="section-label">OpenAI</div>
-        <label for="botOpenAiKey">Chave da API</label>
-        <input id="botOpenAiKey" type="password" placeholder="sk-..." />
-        <p class="hint" id="botOpenAiKeyHint"></p>
-
-        <p class="hint" style="margin-top: 4px;">
-          A conexão com o WhatsApp é feita pelo botão <strong>Conectar WhatsApp</strong> no card do chatbot (QR code in-app).
-        </p>
-
-        <div class="section-label">Modelo e estilo</div>
-        <div class="form-grid">
-          <div>
-            <label for="botOpenAiModel">Modelo</label>
-            <select id="botOpenAiModel">
-              <option value="gpt-4o-mini">gpt-4o-mini (rápido/barato)</option>
-              <option value="gpt-4o">gpt-4o</option>
-              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-              <option value="gpt-4.1">gpt-4.1</option>
-              <option value="o1-mini">o1-mini (raciocínio)</option>
-            </select>
+          <div class="config-bot-identity">
+            <label for="botName">Nome do chatbot</label>
+            <input id="botName" type="text" placeholder="Atendimento Loja" autocomplete="off" />
           </div>
-          <div>
-            <label for="botTemperature">Temperatura (0–1.5)</label>
-            <input id="botTemperature" type="number" step="0.1" min="0" max="1.5" />
-          </div>
-          <div class="form-grid-full">
-            <label for="botMaxTokens">Max tokens por resposta</label>
-            <input id="botMaxTokens" type="number" min="80" max="1500" />
-            <p class="hint">
-              Limita o tamanho da resposta da IA. Valores entre 250 e 500 são ideais para WhatsApp.
-            </p>
-          </div>
-        </div>
-        <label class="checkbox-row" for="botHumanizeEnabled">
-          <input id="botHumanizeEnabled" type="checkbox" />
-          <span>Humanizar conversa (indicador "digitando..." + resposta dividida em até 3 balões)</span>
-        </label>
 
-        <div class="section-label">Filtro de teste (WhatsApp)</div>
-        <label class="checkbox-row" for="botWhatsappTestFilterEnabled">
-          <input id="botWhatsappTestFilterEnabled" type="checkbox" />
-          <span>Restringir respostas a um único número (modo teste)</span>
-        </label>
-        <label for="botWhatsappTestPhone">Número permitido</label>
-        <input
-          id="botWhatsappTestPhone"
-          type="text"
-          placeholder="(19) 98194-0463"
-          autocomplete="off"
-        />
-        <p class="hint">
-          Pode digitar com parênteses, traços, +55 ou sem nada — o sistema normaliza para
-          <code>55DDDNUMERO</code>. Quando a opção está ligada, qualquer outro número que mandar mensagem
-          ao webhook é silenciosamente ignorado (resposta 200 sem chamar a IA).
-        </p>
+          <!-- OpenAI -->
+          <section class="config-capsule" data-capsule="openai">
+            <button
+              type="button"
+              class="config-capsule-trigger"
+              aria-expanded="false"
+              aria-controls="capsule-panel-openai"
+              id="capsule-trigger-openai"
+            >
+              <span class="config-capsule-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              </span>
+              <span class="config-capsule-titles">
+                <span class="config-capsule-title">OpenAI</span>
+                <span class="config-capsule-desc">Credenciais e chaves de acesso</span>
+              </span>
+              <span class="config-capsule-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+            </button>
+            <div class="config-capsule-panel" id="capsule-panel-openai" role="region" aria-labelledby="capsule-trigger-openai" hidden>
+              <label for="botOpenAiKey">API KEY</label>
+              <div class="config-password-row">
+                <input id="botOpenAiKey" type="password" placeholder="sk-..." autocomplete="off" />
+                <button type="button" class="config-password-toggle" id="botOpenAiKeyToggle" aria-label="Mostrar chave" title="Mostrar/ocultar">
+                  <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+              </div>
+              <p class="hint" id="botOpenAiKeyHint"></p>
+              <p class="hint">
+                A conexão com o WhatsApp é feita pelo botão <strong>Conectar WhatsApp</strong> no card do chatbot (QR code in-app).
+              </p>
+            </div>
+          </section>
 
-        <div class="section-label">Comportamento</div>
-        <label for="botSystemPrompt">Prompt</label>
-        <textarea
-          id="botSystemPrompt"
-          placeholder="Você é um atendente comercial objetivo..."
-        ></textarea>
+          <!-- Modelo e estilo -->
+          <section class="config-capsule is-open" data-capsule="model">
+            <button
+              type="button"
+              class="config-capsule-trigger"
+              aria-expanded="true"
+              aria-controls="capsule-panel-model"
+              id="capsule-trigger-model"
+            >
+              <span class="config-capsule-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </span>
+              <span class="config-capsule-titles">
+                <span class="config-capsule-title">Modelo e estilo</span>
+                <span class="config-capsule-desc">Parâmetros de geração e persona</span>
+              </span>
+              <span class="config-capsule-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+            </button>
+            <div class="config-capsule-panel" id="capsule-panel-model" role="region" aria-labelledby="capsule-trigger-model">
+              <div class="config-model-grid">
+                <div class="config-model-col">
+                  <label for="botOpenAiModel">MODELO</label>
+                  <select id="botOpenAiModel">
+                    <option value="gpt-4o-mini">gpt-4o-mini (rápido/barato)</option>
+                    <option value="gpt-4o">gpt-4o</option>
+                    <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                    <option value="gpt-4.1">gpt-4.1</option>
+                    <option value="o1-mini">o1-mini (raciocínio)</option>
+                  </select>
+                  <div class="config-switch-row">
+                    <label class="config-switch" for="botHumanizeEnabled">
+                      <input id="botHumanizeEnabled" type="checkbox" />
+                      <span class="config-switch-slider" aria-hidden="true"></span>
+                      <span class="config-switch-text">
+                        <strong>Humanizar conversa</strong>
+                        <span class="config-switch-sub">Indicador “digitando…” e resposta em até 3 balões</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+                <div class="config-model-col">
+                  <div class="config-temp-block">
+                    <div class="config-temp-head">
+                      <label for="botTemperatureRange">TEMPERATURA</label>
+                      <span class="config-temp-value" id="botTemperatureDisplay">0.6</span>
+                    </div>
+                    <input type="hidden" id="botTemperature" />
+                    <input
+                      type="range"
+                      id="botTemperatureRange"
+                      min="0"
+                      max="1.5"
+                      step="0.1"
+                      aria-valuemin="0"
+                      aria-valuemax="1.5"
+                    />
+                    <div class="config-range-labels">
+                      <span>Preciso</span>
+                      <span>Criativo</span>
+                    </div>
+                  </div>
+                  <label for="botMaxTokens">MAX TOKENS (80–1500)</label>
+                  <input id="botMaxTokens" type="number" min="80" max="1500" step="1" />
+                  <p class="hint">
+                    Limita o tamanho da resposta. Entre 250 e 500 costuma funcionar bem no WhatsApp.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
 
-        <label for="botKnowledgeBase">Base de conhecimento</label>
-        <textarea
-          id="botKnowledgeBase"
-          placeholder="Produtos, preços, políticas, horários, FAQ..."
-          style="min-height: 140px"
-        ></textarea>
+          <!-- Filtro de teste -->
+          <section class="config-capsule" data-capsule="filter">
+            <button
+              type="button"
+              class="config-capsule-trigger"
+              aria-expanded="false"
+              aria-controls="capsule-panel-filter"
+              id="capsule-trigger-filter"
+            >
+              <span class="config-capsule-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+              </span>
+              <span class="config-capsule-titles">
+                <span class="config-capsule-title">Filtro de teste (WhatsApp)</span>
+                <span class="config-capsule-desc">Restringir acesso durante desenvolvimento</span>
+              </span>
+              <span class="config-capsule-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+            </button>
+            <div class="config-capsule-panel" id="capsule-panel-filter" role="region" aria-labelledby="capsule-trigger-filter" hidden>
+              <label class="checkbox-row" for="botWhatsappTestFilterEnabled">
+                <input id="botWhatsappTestFilterEnabled" type="checkbox" />
+                <span>Restringir respostas a um único número (modo teste)</span>
+              </label>
+              <label for="botWhatsappTestPhone">Número permitido</label>
+              <input
+                id="botWhatsappTestPhone"
+                type="text"
+                placeholder="(19) 98194-0463"
+                autocomplete="off"
+              />
+              <p class="hint">
+                Pode digitar com parênteses, traços, +55 ou sem nada — o sistema normaliza para
+                <code>55DDDNUMERO</code>. Com a opção ligada, outros números são ignorados (200 sem IA).
+              </p>
+            </div>
+          </section>
 
-        <div class="actions-row">
-          <button class="btn-primary" id="saveBotBtn">Salvar chatbot</button>
-          <span id="botStatus" class="status-text"></span>
+          <!-- Comportamento (prompt) -->
+          <section class="config-capsule is-open" data-capsule="prompt">
+            <button
+              type="button"
+              class="config-capsule-trigger"
+              aria-expanded="true"
+              aria-controls="capsule-panel-prompt"
+              id="capsule-trigger-prompt"
+            >
+              <span class="config-capsule-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12v1a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-1a7 7 0 0 0-4-12z"/></svg>
+              </span>
+              <span class="config-capsule-titles">
+                <span class="config-capsule-title">Comportamento (Prompt)</span>
+                <span class="config-capsule-desc">Instruções de sistema e lógica do agente</span>
+              </span>
+              <span class="config-capsule-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+            </button>
+            <div class="config-capsule-panel" id="capsule-panel-prompt" role="region" aria-labelledby="capsule-trigger-prompt">
+              <label for="botSystemPrompt">SYSTEM PROMPT</label>
+              <textarea
+                id="botSystemPrompt"
+                maxlength="4000"
+                placeholder="Você é um atendente comercial objetivo..."
+                rows="6"
+              ></textarea>
+              <div class="config-prompt-foot">
+                <p class="hint config-prompt-tip"><em>Dica: use colchetes como {{nome}} para variáveis dinâmicas (quando aplicável).</em></p>
+                <span class="config-char-count" id="botSystemPromptCount">0 / 4000</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Base de conhecimento -->
+          <section class="config-capsule" data-capsule="kb">
+            <button
+              type="button"
+              class="config-capsule-trigger"
+              aria-expanded="false"
+              aria-controls="capsule-panel-kb"
+              id="capsule-trigger-kb"
+            >
+              <span class="config-capsule-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              </span>
+              <span class="config-capsule-titles">
+                <span class="config-capsule-title">Base de conhecimento</span>
+                <span class="config-capsule-desc">Produtos, políticas, FAQ e contexto fixo</span>
+              </span>
+              <span class="config-capsule-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+            </button>
+            <div class="config-capsule-panel" id="capsule-panel-kb" role="region" aria-labelledby="capsule-trigger-kb" hidden>
+              <label for="botKnowledgeBase">Conteúdo</label>
+              <textarea
+                id="botKnowledgeBase"
+                placeholder="Produtos, preços, políticas, horários, FAQ..."
+                rows="6"
+              ></textarea>
+            </div>
+          </section>
         </div>
       </div>
     </div>

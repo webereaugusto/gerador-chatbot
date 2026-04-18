@@ -973,6 +973,396 @@ textarea {
   overflow-y: auto;
 }
 
+/* Modal config chatbot — cápsulas (sanfona) */
+#botModal .modal.modal-config-bot {
+  max-width: 780px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 92vh;
+  overflow: hidden;
+}
+
+.config-bot-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--bg-elev-2) 0%, var(--bg-elev) 100%);
+}
+
+.config-bot-header-main {
+  flex: 1;
+  min-width: 200px;
+}
+
+.config-bot-header-main h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.config-bot-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.config-bot-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #c084fc, #a855f7);
+  flex-shrink: 0;
+}
+
+.config-bot-status {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.config-bot-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+#botModal .config-bot-header .icon-btn {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.config-bot-body {
+  padding: 16px 20px 22px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.config-bot-identity {
+  margin-bottom: 16px;
+}
+
+.config-bot-identity label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.config-capsule {
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.config-capsule-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.15s;
+}
+
+.config-capsule-trigger:hover {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.config-capsule-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+}
+
+.config-capsule-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.config-capsule-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.config-capsule-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.config-capsule-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.config-capsule-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.config-capsule-chevron svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.config-capsule.is-open .config-capsule-chevron {
+  transform: rotate(180deg);
+}
+
+.config-capsule-panel {
+  padding: 0 16px 16px;
+  border-top: 1px solid transparent;
+}
+
+.config-capsule.is-open .config-capsule-panel {
+  border-top-color: var(--border);
+  padding-top: 14px;
+}
+
+.config-capsule-panel label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.config-password-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.config-password-row input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+}
+
+.config-password-toggle {
+  flex-shrink: 0;
+  width: 44px;
+  border: none;
+  background: var(--bg-elev-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.config-password-toggle:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+.config-password-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+.config-password-toggle .eye-off {
+  display: none;
+}
+
+.config-password-toggle.is-visible .eye-open {
+  display: none;
+}
+
+.config-password-toggle.is-visible .eye-off {
+  display: block;
+}
+
+.config-model-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 24px;
+}
+
+@media (max-width: 640px) {
+  .config-model-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.config-model-col .hint {
+  margin-top: 6px;
+}
+
+.config-temp-block {
+  margin-bottom: 14px;
+}
+
+.config-temp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.config-temp-value {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+}
+
+#botTemperatureRange {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.config-range-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.config-switch-row {
+  margin-top: 18px;
+}
+
+.config-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  position: relative;
+}
+
+.config-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.config-switch-slider {
+  flex-shrink: 0;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  position: relative;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+  margin-top: 2px;
+}
+
+.config-switch-slider::after {
+  content: "";
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  top: 2px;
+  left: 3px;
+  transition:
+    transform 0.2s,
+    background 0.2s;
+}
+
+.config-switch input:checked + .config-switch-slider {
+  background: rgba(99, 102, 241, 0.35);
+  border-color: var(--primary);
+}
+
+.config-switch input:checked + .config-switch-slider::after {
+  transform: translateX(16px);
+  background: var(--primary);
+}
+
+.config-switch-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.config-switch-text strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.config-switch-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.config-prompt-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.config-prompt-tip {
+  margin: 0;
+  flex: 1;
+  min-width: 180px;
+}
+
+.config-char-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
