@@ -2,59 +2,95 @@ let sb = null;
 let session = null;
 let cachedBots = [];
 let selectedLeadId = null;
+/** true somente depois que /api/config + createClient deram certo */
+let authConfigReady = false;
+
+function setAuthSubmitEnabled(on) {
+  const btn = document.getElementById("authSubmitBtn");
+  if (btn) btn.disabled = !on;
+}
 
 // ---------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------
 async function bootstrap() {
+  authConfigReady = false;
+  setAuthSubmitEnabled(false);
+  const statusEl = document.getElementById("authStatus");
+  statusEl.className = "status-text";
+  statusEl.innerText = "Carregando configuração...";
+
   let cfg;
   try {
     const res = await fetch("/api/config", {
       headers: { Accept: "application/json" },
+      cache: "no-store",
     });
     const ct = res.headers.get("content-type") || "";
     if (!res.ok || !ct.includes("application/json")) {
       throw new Error(
-        `Resposta inválida (${res.status}). O site pode estar protegido pela Deployment Protection do Vercel.`,
+        `Resposta inválida (HTTP ${res.status}). ` +
+          "Se o projeto usa Deployment Protection na Vercel, desative para o domínio de produção " +
+          "(Settings → Deployment Protection).",
       );
     }
     cfg = await res.json();
   } catch (err) {
-    const el = document.getElementById("authStatus");
-    el.className = "status-text error";
-    el.innerText =
+    statusEl.className = "status-text error";
+    statusEl.innerText =
       "Não foi possível carregar a configuração do servidor. " +
       "Desative a Deployment Protection do projeto no Vercel " +
       "(Settings → Deployment Protection → Vercel Authentication: Disabled). " +
+      "Confira também se SUPABASE_URL e SUPABASE_ANON_KEY estão definidas. " +
       "Detalhe: " +
       err.message;
     return;
   }
 
   if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
-    document.getElementById("authStatus").className = "status-text error";
-    document.getElementById("authStatus").innerText =
-      "Servidor sem configuração do Supabase. Configure SUPABASE_URL e SUPABASE_ANON_KEY no Vercel.";
+    statusEl.className = "status-text error";
+    statusEl.innerText =
+      "Servidor sem configuração do Supabase. No Vercel, em Environment Variables, " +
+      "defina SUPABASE_URL e SUPABASE_ANON_KEY e faça um novo deploy.";
     return;
   }
 
-  sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+  if (!window.supabase || typeof window.supabase.createClient !== "function") {
+    statusEl.className = "status-text error";
+    statusEl.innerText =
+      "SDK do Supabase não carregou (rede ou bloqueio de script). Recarregue a página ou tente outro navegador.";
+    return;
+  }
 
-  const {
-    data: { session: existing },
-  } = await sb.auth.getSession();
+  try {
+    sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+    const {
+      data: { session: existing },
+    } = await sb.auth.getSession();
 
-  sb.auth.onAuthStateChange((_event, newSession) => {
-    session = newSession;
-    if (newSession) showApp();
-    else showAuth();
-  });
+    sb.auth.onAuthStateChange((_event, newSession) => {
+      session = newSession;
+      if (newSession) showApp();
+      else showAuth();
+    });
 
-  if (existing) {
-    session = existing;
-    showApp();
-  } else {
-    showAuth();
+    authConfigReady = true;
+    setAuthSubmitEnabled(true);
+    statusEl.innerText = "";
+
+    if (existing) {
+      session = existing;
+      showApp();
+    } else {
+      showAuth();
+    }
+  } catch (err) {
+    sb = null;
+    authConfigReady = false;
+    setAuthSubmitEnabled(false);
+    statusEl.className = "status-text error";
+    statusEl.innerText =
+      "Erro ao iniciar autenticação: " + (err.message || String(err));
   }
 }
 
@@ -94,7 +130,9 @@ document.querySelectorAll(".auth-tab").forEach((tab) => {
     });
     document.getElementById("authSubmitBtn").innerText =
       authMode === "login" ? "Entrar" : "Criar conta";
-    document.getElementById("authStatus").innerText = "";
+    if (authConfigReady) {
+      document.getElementById("authStatus").innerText = "";
+    }
 
     const hint = document.getElementById("authHint");
     if (hint) {
@@ -123,10 +161,11 @@ async function handleAuthSubmit() {
     return;
   }
 
-  if (!sb) {
+  if (!authConfigReady || !sb) {
     statusEl.className = "status-text error";
     statusEl.innerText =
-      "Configuração ainda não carregou. Recarregue a página ou verifique se a Deployment Protection do Vercel está desativada.";
+      "Aguarde o fim do carregamento acima. Se aparecer erro vermelho, " +
+      "corrija o Vercel (Deployment Protection desligada + variáveis SUPABASE_*) e recarregue (Ctrl+F5).";
     return;
   }
 
@@ -187,7 +226,7 @@ document.getElementById("authSubmitBtn").addEventListener("click", handleAuthSub
 });
 
 document.getElementById("logoutBtn").addEventListener("click", async () => {
-  await sb.auth.signOut();
+  if (sb) await sb.auth.signOut();
 });
 
 // ---------------------------------------------------------------
