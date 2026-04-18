@@ -55,46 +55,55 @@
       "s-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
   }
 
-  // CSS
-  var side = cfg.position === "left" ? "left: 20px;" : "right: 20px;";
+  // CSS — usa !important para resistir a CSS global do site host
+  var side = cfg.position === "left" ? "left:20px!important;" : "right:20px!important;";
   var css =
     "" +
-    ".gcw-launcher{position:fixed;bottom:20px;" +
+    // Launcher (botao flutuante)
+    ".gcw-launcher{position:fixed!important;bottom:20px!important;" +
     side +
-    "width:60px;height:60px;border-radius:50%;background:" +
+    "width:60px!important;height:60px!important;min-width:60px!important;min-height:60px!important;border-radius:50%!important;background:" +
     cfg.color +
-    ";color:#fff;border:none;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;z-index:2147483000;transition:transform .2s}" +
-    ".gcw-launcher:hover{transform:scale(1.06)}" +
-    ".gcw-launcher svg{width:28px;height:28px}" +
-    ".gcw-panel{position:fixed;bottom:94px;" +
+    "!important;color:#fff!important;border:none!important;padding:0!important;margin:0!important;cursor:pointer!important;box-shadow:0 8px 24px rgba(0,0,0,.2)!important;display:flex!important;align-items:center!important;justify-content:center!important;z-index:2147483000!important;transition:transform .2s!important;box-sizing:border-box!important;line-height:1!important}" +
+    ".gcw-launcher:hover{transform:scale(1.06)!important}" +
+    ".gcw-launcher svg,.gcw-send svg,.gcw-close svg{display:block!important;stroke:currentColor!important;fill:none!important;pointer-events:none!important;opacity:1!important;visibility:visible!important}" +
+    ".gcw-launcher svg{width:28px!important;height:28px!important}" +
+    ".gcw-send svg{width:18px!important;height:18px!important}" +
+    ".gcw-close svg{width:20px!important;height:20px!important}" +
+    // Panel
+    ".gcw-panel{position:fixed!important;bottom:94px!important;" +
     side +
-    "width:360px;max-width:calc(100vw - 24px);height:540px;max-height:calc(100vh - 120px);background:#fff;border-radius:14px;box-shadow:0 20px 40px rgba(0,0,0,.25);display:none;flex-direction:column;overflow:hidden;z-index:2147483000;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}" +
-    ".gcw-panel.open{display:flex}" +
+    "width:360px!important;max-width:calc(100vw - 24px)!important;height:540px!important;max-height:calc(100vh - 120px)!important;background:#fff!important;border-radius:14px!important;box-shadow:0 20px 40px rgba(0,0,0,.25)!important;display:none;flex-direction:column!important;overflow:hidden!important;z-index:2147483000!important;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif!important;box-sizing:border-box!important;color:#111!important}" +
+    ".gcw-panel.open{display:flex!important}" +
+    ".gcw-panel *{box-sizing:border-box!important}" +
+    // Header
     ".gcw-head{background:" +
     cfg.color +
-    ";color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px}" +
-    ".gcw-head-title{font-size:15px;font-weight:600;line-height:1.2}" +
-    ".gcw-head-sub{font-size:12px;opacity:.9;margin-top:2px}" +
-    ".gcw-close{background:transparent;border:none;color:#fff;cursor:pointer;padding:4px;border-radius:6px}" +
-    ".gcw-close:hover{background:rgba(255,255,255,.15)}" +
-    ".gcw-body{flex:1;overflow-y:auto;padding:14px;background:#f7f7f9;display:flex;flex-direction:column;gap:8px}" +
-    ".gcw-msg{max-width:80%;padding:9px 12px;border-radius:14px;font-size:14px;line-height:1.4;word-wrap:break-word;white-space:pre-wrap}" +
-    ".gcw-msg.bot{background:#fff;color:#111;border:1px solid #e6e6ea;align-self:flex-start;border-bottom-left-radius:4px}" +
+    "!important;color:#fff!important;padding:14px 16px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important}" +
+    ".gcw-head-title{font-size:15px!important;font-weight:600!important;line-height:1.2!important;color:#fff!important;margin:0!important}" +
+    ".gcw-head-sub{font-size:12px!important;opacity:.9!important;margin-top:2px!important;color:#fff!important}" +
+    ".gcw-close{background:transparent!important;border:none!important;color:#fff!important;cursor:pointer!important;padding:4px!important;border-radius:6px!important;display:flex!important;align-items:center!important;justify-content:center!important;width:28px!important;height:28px!important}" +
+    ".gcw-close:hover{background:rgba(255,255,255,.15)!important}" +
+    // Body
+    ".gcw-body{flex:1!important;overflow-y:auto!important;padding:14px!important;background:#f7f7f9!important;display:flex!important;flex-direction:column!important;gap:8px!important}" +
+    ".gcw-msg{max-width:80%!important;padding:9px 12px!important;border-radius:14px!important;font-size:14px!important;line-height:1.4!important;word-wrap:break-word!important;white-space:pre-wrap!important;margin:0!important}" +
+    ".gcw-msg.bot{background:#fff!important;color:#111!important;border:1px solid #e6e6ea!important;align-self:flex-start!important;border-bottom-left-radius:4px!important}" +
     ".gcw-msg.user{background:" +
     cfg.color +
-    ";color:#fff;align-self:flex-end;border-bottom-right-radius:4px}" +
-    ".gcw-msg.typing{color:#888;font-style:italic;background:#fff;border:1px solid #e6e6ea;align-self:flex-start}" +
-    ".gcw-foot{padding:10px;border-top:1px solid #eee;background:#fff;display:flex;gap:8px}" +
-    ".gcw-input{flex:1;border:1px solid #d8d8de;border-radius:20px;padding:9px 14px;font-size:14px;outline:none;font-family:inherit}" +
+    "!important;color:#fff!important;align-self:flex-end!important;border-bottom-right-radius:4px!important}" +
+    ".gcw-msg.typing{color:#888!important;font-style:italic!important;background:#fff!important;border:1px solid #e6e6ea!important;align-self:flex-start!important}" +
+    // Footer / input / send
+    ".gcw-foot{padding:10px!important;border-top:1px solid #eee!important;background:#fff!important;display:flex!important;gap:8px!important;align-items:center!important}" +
+    ".gcw-input{flex:1!important;border:1px solid #d8d8de!important;border-radius:20px!important;padding:9px 14px!important;font-size:14px!important;outline:none!important;font-family:inherit!important;background:#fff!important;color:#111!important;height:40px!important;box-sizing:border-box!important;margin:0!important}" +
     ".gcw-input:focus{border-color:" +
     cfg.color +
-    "}" +
+    "!important}" +
     ".gcw-send{background:" +
     cfg.color +
-    ";color:#fff;border:none;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center}" +
-    ".gcw-send:disabled{opacity:.5;cursor:not-allowed}" +
-    ".gcw-brand{text-align:center;padding:6px;font-size:11px;color:#999;background:#fff;border-top:1px solid #f0f0f0}" +
-    "@media(max-width:480px){.gcw-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0}}";
+    "!important;color:#fff!important;border:none!important;width:40px!important;height:40px!important;min-width:40px!important;min-height:40px!important;border-radius:50%!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;margin:0!important;flex-shrink:0!important;line-height:1!important;box-sizing:border-box!important}" +
+    ".gcw-send:disabled{opacity:.5!important;cursor:not-allowed!important}" +
+    ".gcw-brand{text-align:center!important;padding:6px!important;font-size:11px!important;color:#999!important;background:#fff!important;border-top:1px solid #f0f0f0!important;margin:0!important}" +
+    "@media(max-width:480px){.gcw-panel{bottom:0!important;right:0!important;left:0!important;width:100%!important;max-width:100%!important;height:100%!important;max-height:100%!important;border-radius:0!important}}";
 
   var style = document.createElement("style");
   style.textContent = css;
@@ -105,7 +114,7 @@
   launcher.className = "gcw-launcher";
   launcher.setAttribute("aria-label", "Abrir chat");
   launcher.innerHTML =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
 
   // Panel
   var panel = document.createElement("div");
@@ -113,12 +122,12 @@
   panel.innerHTML =
     '<div class="gcw-head">' +
     '<div><div class="gcw-head-title"></div><div class="gcw-head-sub"></div></div>' +
-    '<button class="gcw-close" aria-label="Fechar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
+    '<button class="gcw-close" aria-label="Fechar" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
     "</div>" +
     '<div class="gcw-body"></div>' +
     '<div class="gcw-foot">' +
     '<input class="gcw-input" type="text" />' +
-    '<button class="gcw-send" aria-label="Enviar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>' +
+    '<button class="gcw-send" aria-label="Enviar" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>' +
     "</div>" +
     '<div class="gcw-brand">Powered by Gerador de Chatbot</div>';
 
