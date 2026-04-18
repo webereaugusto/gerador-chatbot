@@ -136,27 +136,35 @@
           <div id="botList" class="bot-list"></div>
         </section>
 
-        <!-- Leads -->
+        <!-- Leads / Inbox -->
         <section class="view" data-view="leads">
-          <header class="view-header">
-            <div>
-              <h1>Leads e Conversas</h1>
-              <p class="muted">Veja quem conversou com seus chatbots.</p>
-            </div>
-          </header>
+          <div class="inbox">
+            <aside class="inbox-sidebar">
+              <div class="inbox-sidebar-head">
+                <div class="inbox-title">
+                  <h1>Inbox</h1>
+                  <span class="inbox-count" id="inboxCount">0</span>
+                </div>
+                <select id="leadsBotSelect" class="inbox-bot-select"></select>
+                <div class="inbox-search">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" id="inboxSearch" placeholder="Buscar conversas..." autocomplete="off" />
+                </div>
+              </div>
+              <div class="inbox-list" id="leadsList">
+                <div class="empty-state">Selecione um chatbot.</div>
+              </div>
+            </aside>
 
-          <div class="leads-toolbar">
-            <label for="leadsBotSelect">Chatbot</label>
-            <select id="leadsBotSelect"></select>
-          </div>
-
-          <div class="leads-layout">
-            <div class="leads-list card" id="leadsList">
-              <div class="empty-state">Selecione um chatbot.</div>
-            </div>
-            <div class="leads-conversation card" id="conversationPanel">
-              <div class="empty-state">Escolha um lead para ver a conversa.</div>
-            </div>
+            <section class="inbox-chat" id="conversationPanel">
+              <div class="inbox-placeholder">
+                <div class="placeholder-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <div class="placeholder-title">Escolha uma conversa</div>
+                <div class="placeholder-sub">Selecione um lead na lista para ver e responder mensagens.</div>
+              </div>
+            </section>
           </div>
         </section>
 

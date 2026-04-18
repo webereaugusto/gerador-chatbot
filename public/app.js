@@ -719,10 +719,23 @@ document.getElementById("previewWidgetBtn").addEventListener("click", () => {
 });
 
 // ---------------------------------------------------------------
-// Leads e conversas
+// Leads e conversas (Inbox)
 // ---------------------------------------------------------------
+let cachedLeads = [];
+let currentLead = null;
+let inboxSearchTerm = "";
+let inboxRefreshTimer = null;
+
+const INBOX_ICONS = {
+  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  whatsapp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.1-1.6-.8-1.9-.9-.3-.1-.4-.1-.6.1-.2.3-.7.9-.8 1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.2-1.3-.8-.7-1.4-1.6-1.5-1.9-.2-.3 0-.4.1-.6l.4-.5c.1-.2.2-.3.3-.5.1-.2 0-.3 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9.6.3 1.1.4 1.5.6.6.2 1.2.2 1.6.1.5-.1 1.6-.6 1.8-1.3.2-.6.2-1.2.2-1.3-.1-.1-.3-.2-.5-.3z"/></svg>',
+};
+
 function populateLeadsBotSelect() {
   const select = document.getElementById("leadsBotSelect");
+  if (!select) return;
   const current = select.value;
   select.innerHTML =
     '<option value="">— selecione um chatbot —</option>' +
@@ -735,19 +748,49 @@ function populateLeadsBotSelect() {
 
 document.getElementById("leadsBotSelect").addEventListener("change", (e) => {
   const botId = e.target.value;
-  if (botId) loadLeads(botId);
-  else {
-    document.getElementById("leadsList").innerHTML =
-      '<div class="empty-state">Selecione um chatbot.</div>';
-    document.getElementById("conversationPanel").innerHTML =
-      '<div class="empty-state">Escolha um lead para ver a conversa.</div>';
+  stopInboxRefresh();
+  currentLead = null;
+  renderConversationPlaceholder();
+  if (botId) {
+    loadLeads(botId);
+    startInboxRefresh(botId);
+  } else {
+    cachedLeads = [];
+    renderLeadsList();
+    updateInboxCount();
   }
 });
+
+const inboxSearchEl = document.getElementById("inboxSearch");
+if (inboxSearchEl) {
+  inboxSearchEl.addEventListener("input", (e) => {
+    inboxSearchTerm = e.target.value.toLowerCase().trim();
+    renderLeadsList();
+  });
+}
 
 function loadLeadsView() {
   populateLeadsBotSelect();
   const botId = document.getElementById("leadsBotSelect").value;
-  if (botId) loadLeads(botId);
+  if (botId) {
+    loadLeads(botId);
+    startInboxRefresh(botId);
+  }
+}
+
+function startInboxRefresh(botId) {
+  stopInboxRefresh();
+  inboxRefreshTimer = setInterval(() => {
+    loadLeads(botId, { silent: true });
+    if (currentLead) loadConversation(currentLead.id, { silent: true });
+  }, 15000);
+}
+
+function stopInboxRefresh() {
+  if (inboxRefreshTimer) {
+    clearInterval(inboxRefreshTimer);
+    inboxRefreshTimer = null;
+  }
 }
 
 function formatDate(iso) {
@@ -756,94 +799,309 @@ function formatDate(iso) {
   return d.toLocaleString("pt-BR");
 }
 
-async function loadLeads(botId) {
+function formatInboxTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+  if (sameDay) {
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+  const diffMs = now - d;
+  if (diffMs < 7 * 24 * 3600 * 1000) {
+    return d.toLocaleDateString("pt-BR", { weekday: "short" });
+  }
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+function formatMessageTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDayLabel(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  const startDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((startNow - startDay) / 86400000);
+  if (diffDays === 0) return "Hoje";
+  if (diffDays === 1) return "Ontem";
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function updateInboxCount() {
+  const el = document.getElementById("inboxCount");
+  if (!el) return;
+  const visible = getVisibleLeads();
+  el.textContent = String(visible.length);
+}
+
+function getVisibleLeads() {
+  if (!inboxSearchTerm) return cachedLeads;
+  return cachedLeads.filter((lead) => {
+    const hay = `${lead.name || ""} ${lead.phone || ""} ${lead.last_message_preview || ""}`.toLowerCase();
+    return hay.includes(inboxSearchTerm);
+  });
+}
+
+function getInitials(str) {
+  if (!str) return "?";
+  const parts = String(str).trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
+async function loadLeads(botId, options = {}) {
   const listEl = document.getElementById("leadsList");
-  listEl.innerHTML = '<div class="empty-state">Carregando...</div>';
+  if (!listEl) return;
+  if (!options.silent) {
+    listEl.innerHTML = '<div class="empty-state">Carregando...</div>';
+  }
 
   const res = await authFetch(`/api/chatbots/${botId}/leads`);
   if (!res.ok) {
-    listEl.innerHTML = '<div class="empty-state">Erro ao carregar leads.</div>';
+    if (!options.silent) {
+      listEl.innerHTML = '<div class="empty-state error">Erro ao carregar leads.</div>';
+    }
     return;
   }
   const data = await res.json();
+  cachedLeads = data.items || [];
+  renderLeadsList();
+  updateInboxCount();
+}
 
-  if (!data.items || data.items.length === 0) {
-    listEl.innerHTML = '<div class="empty-state">Nenhum lead ainda.</div>';
+function renderLeadsList() {
+  const listEl = document.getElementById("leadsList");
+  if (!listEl) return;
+
+  const visible = getVisibleLeads();
+
+  if (visible.length === 0) {
+    const msg = inboxSearchTerm
+      ? "Nada encontrado para essa busca."
+      : "Nenhum lead ainda.";
+    listEl.innerHTML = `<div class="empty-state">${msg}</div>`;
     return;
   }
 
-  listEl.innerHTML = data.items
-    .map(
-      (lead) => `
-      <div class="lead-item" data-lead-id="${lead.id}">
-        <div class="lead-avatar">${(lead.name || lead.phone || "?")
-          .charAt(0)
-          .toUpperCase()}</div>
-        <div class="lead-main">
-          <div class="lead-name">${escapeHtml(lead.name || lead.phone)}</div>
-          <div class="lead-phone">${escapeHtml(lead.phone)}</div>
+  listEl.innerHTML = visible
+    .map((lead) => {
+      const isActive = currentLead && currentLead.id === lead.id;
+      const display = lead.name || lead.phone || "Sem nome";
+      const source = lead.source === "whatsapp" ? "wa" : "web";
+      const preview = lead.last_message_preview
+        ? (lead.last_message_role === "assistant" ? '<span class="preview-from-bot">Voce:</span>' : "") +
+          escapeHtml(lead.last_message_preview)
+        : '<span style="opacity:0.5;">Sem mensagens ainda</span>';
+      const tags = [];
+      if (lead.source === "web") tags.push('<span class="lead-tag">WEB</span>');
+      if (lead.source === "whatsapp") tags.push('<span class="lead-tag green">WHATSAPP</span>');
+
+      return `
+        <div class="lead-item ${isActive ? "active" : ""}" data-lead-id="${lead.id}">
+          <div class="lead-avatar">
+            ${escapeHtml(getInitials(display))}
+            <span class="source-badge ${source}" title="${source === "wa" ? "WhatsApp" : "Web"}">${source === "wa" ? "W" : "●"}</span>
+          </div>
+          <div class="lead-main">
+            <div class="lead-row">
+              <span class="lead-name">${escapeHtml(display)}</span>
+              <span class="lead-time">${escapeHtml(formatInboxTime(lead.last_message_at))}</span>
+            </div>
+            <div class="lead-preview">${preview}</div>
+            <div class="lead-tags">${tags.join("")}</div>
+          </div>
         </div>
-        <div class="lead-time">${formatDate(lead.last_message_at)}</div>
-      </div>
-    `,
-    )
+      `;
+    })
     .join("");
 }
 
 document.getElementById("leadsList").addEventListener("click", async (e) => {
   const item = e.target.closest(".lead-item");
   if (!item) return;
-
-  selectedLeadId = item.dataset.leadId;
-  document.querySelectorAll(".lead-item").forEach((el) => {
-    el.classList.toggle("active", el === item);
-  });
-
-  await loadConversation(selectedLeadId);
+  const leadId = item.dataset.leadId;
+  const lead = cachedLeads.find((l) => l.id === leadId);
+  if (!lead) return;
+  currentLead = lead;
+  renderLeadsList();
+  await loadConversation(leadId);
 });
 
-async function loadConversation(leadId) {
+function renderConversationPlaceholder() {
   const panel = document.getElementById("conversationPanel");
-  panel.innerHTML = '<div class="empty-state">Carregando conversa...</div>';
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="inbox-placeholder">
+      <div class="placeholder-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <div class="placeholder-title">Escolha uma conversa</div>
+      <div class="placeholder-sub">Selecione um lead na lista para ver e responder mensagens.</div>
+    </div>
+  `;
+}
+
+async function loadConversation(leadId, options = {}) {
+  const panel = document.getElementById("conversationPanel");
+  if (!panel) return;
+
+  if (!options.silent) {
+    panel.innerHTML = '<div class="inbox-placeholder"><div class="placeholder-sub">Carregando conversa...</div></div>';
+  }
 
   const res = await authFetch(`/api/leads/${leadId}/messages`);
   if (!res.ok) {
-    panel.innerHTML = '<div class="empty-state">Erro ao carregar conversa.</div>';
+    panel.innerHTML = '<div class="inbox-placeholder"><div class="placeholder-sub" style="color:#f87171">Erro ao carregar conversa.</div></div>';
     return;
   }
 
   const data = await res.json();
   const lead = data.lead;
+  currentLead = { ...currentLead, ...lead };
+
+  const bot = cachedBots.find((b) => b.id === lead.chatbot_id);
+  const whatsappOk = bot?.whatsappConnectionStatus === "open";
+  const isWhatsapp = lead.source === "whatsapp";
+  const canSend = isWhatsapp && whatsappOk;
+
+  const display = lead.name || lead.phone;
+  const statusTxt = canSend
+    ? '<span class="chat-header-status">WhatsApp conectado</span>'
+    : isWhatsapp
+      ? '<span class="chat-header-status off">WhatsApp desconectado</span>'
+      : '<span class="chat-header-status off">Canal: Web widget</span>';
 
   const header = `
-    <div class="conversation-header">
-      <div>
-        <div class="conversation-title">${escapeHtml(lead.name || lead.phone)}</div>
-        <div class="conversation-subtitle">${escapeHtml(lead.phone)}</div>
+    <div class="chat-header">
+      <div class="chat-header-avatar">${escapeHtml(getInitials(display))}</div>
+      <div class="chat-header-main">
+        <div class="chat-header-name">${escapeHtml(display)} ${statusTxt}</div>
+        <div class="chat-header-sub">${escapeHtml(lead.phone)} · criado em ${formatDate(lead.created_at)}</div>
+      </div>
+      <div class="chat-header-actions">
+        <button class="icon-only-btn" id="chatRefreshBtn" title="Atualizar">${INBOX_ICONS.refresh}</button>
       </div>
     </div>
   `;
 
-  if (!data.items || data.items.length === 0) {
-    panel.innerHTML = header + '<div class="empty-state">Sem mensagens ainda.</div>';
-    return;
+  const items = data.items || [];
+  let bodyHtml = "";
+  let lastDay = "";
+  if (items.length === 0) {
+    bodyHtml = `<div class="inbox-placeholder" style="height:100%;"><div class="placeholder-sub">Sem mensagens ainda.</div></div>`;
+  } else {
+    bodyHtml = items
+      .map((m) => {
+        const day = formatDayLabel(m.created_at);
+        const sep = day !== lastDay ? `<div class="msg-day-sep">${escapeHtml(day)}</div>` : "";
+        lastDay = day;
+        const avatarLabel = m.role === "assistant" ? "AI" : getInitials(display);
+        return `
+          ${sep}
+          <div class="msg-wrap ${m.role}">
+            <div class="msg-avatar">${escapeHtml(avatarLabel)}</div>
+            <div class="msg-content">
+              <div class="msg-bubble">${escapeHtml(m.content)}</div>
+              <div class="msg-time">${escapeHtml(formatMessageTime(m.created_at))}</div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
   }
 
-  const messages = data.items
-    .map(
-      (m) => `
-      <div class="msg-bubble ${m.role}">
-        <div class="msg-text">${escapeHtml(m.content)}</div>
-        <div class="msg-time">${formatDate(m.created_at)}</div>
+  let footerHint = "";
+  let placeholder = "Digite sua resposta...";
+  if (!isWhatsapp) {
+    footerHint = '<span class="status-warning">Envio manual disponivel apenas para conversas do WhatsApp.</span>';
+    placeholder = "Resposta manual indisponivel para leads web.";
+  } else if (!whatsappOk) {
+    footerHint = '<span class="status-error">WhatsApp do chatbot desconectado — conecte para enviar.</span>';
+    placeholder = "Conecte o WhatsApp do chatbot para enviar.";
+  } else {
+    footerHint = '<span class="status-ok">Pronto para enviar via WhatsApp</span>';
+  }
+
+  const composer = `
+    <div class="chat-composer">
+      <div class="chat-composer-inner">
+        <textarea id="chatComposerInput" class="chat-composer-input" rows="1" placeholder="${escapeHtml(placeholder)}" ${canSend ? "" : "disabled"}></textarea>
+        <button id="chatSendBtn" class="chat-send" ${canSend ? "" : "disabled"} title="Enviar">${INBOX_ICONS.send}</button>
       </div>
-    `,
-    )
-    .join("");
+      <div class="chat-composer-footer">
+        ${footerHint}
+        <span>Enter para enviar · Shift+Enter para nova linha</span>
+      </div>
+    </div>
+  `;
 
-  panel.innerHTML = header + `<div class="conversation-body">${messages}</div>`;
+  panel.innerHTML = `${header}<div class="chat-body" id="chatBody">${bodyHtml}</div>${composer}`;
 
-  const body = panel.querySelector(".conversation-body");
+  const body = panel.querySelector("#chatBody");
   if (body) body.scrollTop = body.scrollHeight;
+
+  const refreshBtn = panel.querySelector("#chatRefreshBtn");
+  if (refreshBtn) refreshBtn.addEventListener("click", () => loadConversation(leadId));
+
+  const input = panel.querySelector("#chatComposerInput");
+  const sendBtn = panel.querySelector("#chatSendBtn");
+  if (input && sendBtn) {
+    const autoResize = () => {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 160) + "px";
+    };
+    input.addEventListener("input", autoResize);
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && !ev.shiftKey) {
+        ev.preventDefault();
+        sendBtn.click();
+      }
+    });
+    sendBtn.addEventListener("click", async () => {
+      const text = input.value.trim();
+      if (!text || sendBtn.disabled) return;
+      sendBtn.disabled = true;
+      input.disabled = true;
+      const prevPlaceholder = input.placeholder;
+      input.placeholder = "Enviando...";
+      try {
+        const resp = await authFetch(`/api/leads/${leadId}/send-message`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        const result = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          throw new Error(result.error || "Falha ao enviar");
+        }
+        input.value = "";
+        autoResize();
+        await loadConversation(leadId, { silent: true });
+        if (currentLead) {
+          const botId = currentLead.chatbot_id;
+          if (botId) await loadLeads(botId, { silent: true });
+        }
+      } catch (err) {
+        alert("Nao foi possivel enviar: " + (err.message || err));
+      } finally {
+        input.placeholder = prevPlaceholder;
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    });
+  }
 }
 
 // ---------------------------------------------------------------

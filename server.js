@@ -951,7 +951,30 @@ app.get("/api/chatbots/:id/leads", requireUser, async (req, res) => {
     .limit(200);
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json({ items: data || [] });
+
+  const leads = data || [];
+  if (leads.length > 0) {
+    const leadIds = leads.map((l) => l.id);
+    const { data: msgs } = await supabaseAdmin
+      .from("messages")
+      .select("lead_id, role, content, created_at")
+      .in("lead_id", leadIds)
+      .order("created_at", { ascending: false });
+
+    const lastByLead = new Map();
+    for (const m of msgs || []) {
+      if (!lastByLead.has(m.lead_id)) lastByLead.set(m.lead_id, m);
+    }
+    for (const lead of leads) {
+      const last = lastByLead.get(lead.id);
+      if (last) {
+        lead.last_message_preview = (last.content || "").slice(0, 120);
+        lead.last_message_role = last.role;
+      }
+    }
+  }
+
+  res.json({ items: leads });
 });
 
 app.get("/api/leads/:id/messages", requireUser, async (req, res) => {
@@ -973,6 +996,54 @@ app.get("/api/leads/:id/messages", requireUser, async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   res.json({ lead, items: data || [] });
+});
+
+// Envia mensagem manual do operador para o lead (via WhatsApp)
+app.post("/api/leads/:id/send-message", requireUser, async (req, res) => {
+  try {
+    const text = String(req.body?.text || "").trim();
+    if (!text) return res.status(400).json({ error: "Texto obrigatorio." });
+    if (text.length > 4000) return res.status(400).json({ error: "Texto muito longo (max 4000)." });
+
+    const { data: lead, error: leadError } = await supabaseAdmin
+      .from("leads")
+      .select("*, chatbots!inner(*)")
+      .eq("id", req.params.id)
+      .single();
+
+    if (leadError || !lead || lead.chatbots.user_id !== req.user.id) {
+      return res.status(404).json({ error: "Lead nao encontrado." });
+    }
+
+    const bot = lead.chatbots;
+
+    if (lead.source !== "whatsapp") {
+      return res.status(400).json({
+        error: "Envio manual disponivel apenas para leads de WhatsApp.",
+      });
+    }
+
+    if (bot.whatsapp_connection_status !== "open") {
+      return res.status(400).json({
+        error: "WhatsApp do chatbot nao esta conectado.",
+      });
+    }
+
+    await sendEvolutionMessage(bot, lead.phone, text);
+    const msg = await saveMessage(lead.id, "assistant", text);
+
+    await supabaseAdmin
+      .from("leads")
+      .update({ last_message_at: new Date().toISOString() })
+      .eq("id", lead.id);
+
+    res.json({ ok: true, message: msg });
+  } catch (error) {
+    const src = error.source || "unknown";
+    const detail = error.message || String(error);
+    console.error(`[SEND-MANUAL ${src}] ${detail}`);
+    res.status(500).json({ error: "Falha ao enviar mensagem.", source: src, detail });
+  }
 });
 
 // ---------------------------------------------------------------
@@ -1259,9 +1330,12 @@ async function getRecentHistory(leadId, limit = 10) {
 }
 
 async function saveMessage(leadId, role, content) {
-  await supabaseAdmin
+  const { data } = await supabaseAdmin
     .from("messages")
-    .insert({ lead_id: leadId, role, content });
+    .insert({ lead_id: leadId, role, content })
+    .select("*")
+    .single();
+  return data;
 }
 
 app.post("/webhook/evolution/:botId", async (req, res) => {
