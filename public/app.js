@@ -7,13 +7,34 @@ let selectedLeadId = null;
 // Bootstrap
 // ---------------------------------------------------------------
 async function bootstrap() {
-  const res = await fetch("/api/config");
-  const cfg = await res.json();
+  let cfg;
+  try {
+    const res = await fetch("/api/config", {
+      headers: { Accept: "application/json" },
+    });
+    const ct = res.headers.get("content-type") || "";
+    if (!res.ok || !ct.includes("application/json")) {
+      throw new Error(
+        `Resposta inválida (${res.status}). O site pode estar protegido pela Deployment Protection do Vercel.`,
+      );
+    }
+    cfg = await res.json();
+  } catch (err) {
+    const el = document.getElementById("authStatus");
+    el.className = "status-text error";
+    el.innerText =
+      "Não foi possível carregar a configuração do servidor. " +
+      "Desative a Deployment Protection do projeto no Vercel " +
+      "(Settings → Deployment Protection → Vercel Authentication: Disabled). " +
+      "Detalhe: " +
+      err.message;
+    return;
+  }
 
   if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
     document.getElementById("authStatus").className = "status-text error";
     document.getElementById("authStatus").innerText =
-      "Servidor sem configuração do Supabase. Configure as variáveis de ambiente no Vercel.";
+      "Servidor sem configuração do Supabase. Configure SUPABASE_URL e SUPABASE_ANON_KEY no Vercel.";
     return;
   }
 
@@ -99,6 +120,13 @@ async function handleAuthSubmit() {
   if (password.length < 6) {
     statusEl.className = "status-text error";
     statusEl.innerText = "A senha precisa ter pelo menos 6 caracteres.";
+    return;
+  }
+
+  if (!sb) {
+    statusEl.className = "status-text error";
+    statusEl.innerText =
+      "Configuração ainda não carregou. Recarregue a página ou verifique se a Deployment Protection do Vercel está desativada.";
     return;
   }
 
