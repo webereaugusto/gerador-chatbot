@@ -102,30 +102,51 @@ async function generateAiReply(bot, userMessage, history = []) {
     { role: "user", content: userMessage },
   ];
 
-  const response = await client.chat.completions.create({
-    model: "gpt-4.1-mini",
-    temperature: 0.4,
-    messages,
-  });
+  try {
+    const response = await client.chat.completions.create({
+      model: "gpt-4.1-mini",
+      temperature: 0.4,
+      messages,
+    });
 
-  return response.choices?.[0]?.message?.content?.trim() || "Sem resposta da IA.";
+    return response.choices?.[0]?.message?.content?.trim() || "Sem resposta da IA.";
+  } catch (err) {
+    const msg = `[OPENAI] falhou | status=${err.status || "?"} | code=${err.code || "?"} | err=${err.message}`;
+    const wrapped = new Error(msg);
+    wrapped.source = "openai";
+    wrapped.openaiStatus = err.status;
+    wrapped.openaiCode = err.code;
+    throw wrapped;
+  }
 }
 
 async function sendEvolutionMessage(bot, number, text) {
   const baseUrl = bot.evolution_base_url.replace(/\/$/, "");
   const url = `${baseUrl}/message/sendText/${bot.evolution_instance}`;
 
-  await axios.post(
-    url,
-    { number, text },
-    {
-      headers: {
-        apikey: bot.evolution_api_key,
-        "Content-Type": "application/json",
+  try {
+    await axios.post(
+      url,
+      { number, text },
+      {
+        headers: {
+          apikey: bot.evolution_api_key,
+          "Content-Type": "application/json",
+        },
+        timeout: 30000,
       },
-      timeout: 15000,
-    },
-  );
+    );
+  } catch (err) {
+    const status = err.response?.status;
+    const body = err.response?.data;
+    const detail = typeof body === "string" ? body : JSON.stringify(body || {});
+    const msg = `[EVOLUTION] POST ${url} falhou | status=${status || "timeout"} | body=${detail.slice(0, 500)} | err=${err.message}`;
+    const wrapped = new Error(msg);
+    wrapped.source = "evolution";
+    wrapped.httpStatus = status;
+    wrapped.httpBody = body;
+    throw wrapped;
+  }
 }
 
 // ---------------------------------------------------------------
@@ -429,10 +450,13 @@ app.post("/webhook/evolution/:botId", async (req, res) => {
 
     res.status(200).json({ ok: true });
   } catch (error) {
-    console.error("Webhook error:", error?.response?.data || error.message);
+    const src = error.source || "unknown";
+    const line = `[WEBHOOK ${src}] ${error.message}`;
+    console.error(line);
     res.status(500).json({
       error: "Erro ao processar webhook.",
-      detail: error?.response?.data || error.message,
+      source: src,
+      detail: error.message,
     });
   }
 });
