@@ -418,6 +418,129 @@ function initBotConfigModal() {
 
 initBotConfigModal();
 
+// ---------------------------------------------------------------
+// Editor grande (prompt / base de conhecimento)
+// ---------------------------------------------------------------
+const largeTextEditorState = {
+  targetId: null,
+  maxLength: null,
+};
+
+function updateLargeTextEditorCount() {
+  const ta = document.getElementById("largeTextEditorField");
+  const cnt = document.getElementById("largeTextEditorCount");
+  const wrap = document.getElementById("largeTextEditorCountWrap");
+  if (!ta || !cnt || !wrap) return;
+  if (largeTextEditorState.maxLength != null) {
+    wrap.hidden = false;
+    cnt.textContent = `${ta.value.length} / ${largeTextEditorState.maxLength}`;
+  } else {
+    wrap.hidden = true;
+  }
+}
+
+function openLargeTextEditor(opts) {
+  const { targetId, title, maxLength, hintText } = opts;
+  const backdrop = document.getElementById("largeTextEditorBackdrop");
+  const ta = document.getElementById("largeTextEditorField");
+  const target = document.getElementById(targetId);
+  const titleEl = document.getElementById("largeTextEditorTitle");
+  const hint = document.getElementById("largeTextEditorHint");
+  if (!backdrop || !ta || !target || !titleEl) return;
+
+  largeTextEditorState.targetId = targetId;
+  largeTextEditorState.maxLength = maxLength != null ? maxLength : null;
+
+  titleEl.textContent = title;
+  ta.value = target.value || "";
+  if (maxLength != null) ta.maxLength = maxLength;
+  else ta.removeAttribute("maxLength");
+
+  if (hint) {
+    if (hintText) {
+      hint.hidden = false;
+      hint.textContent = hintText;
+    } else {
+      hint.hidden = true;
+      hint.textContent = "";
+    }
+  }
+
+  updateLargeTextEditorCount();
+  backdrop.classList.add("open");
+  backdrop.setAttribute("aria-hidden", "false");
+  ta.focus();
+  const len = ta.value.length;
+  ta.setSelectionRange(len, len);
+}
+
+function closeLargeTextEditor() {
+  const backdrop = document.getElementById("largeTextEditorBackdrop");
+  if (backdrop) {
+    backdrop.classList.remove("open");
+    backdrop.setAttribute("aria-hidden", "true");
+  }
+  largeTextEditorState.targetId = null;
+  largeTextEditorState.maxLength = null;
+}
+
+function applyLargeTextEditor() {
+  const ta = document.getElementById("largeTextEditorField");
+  const targetId = largeTextEditorState.targetId;
+  if (!ta || !targetId) {
+    closeLargeTextEditor();
+    return;
+  }
+  const target = document.getElementById(targetId);
+  if (target) {
+    target.value = ta.value;
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  closeLargeTextEditor();
+}
+
+function initLargeTextEditor() {
+  const backdrop = document.getElementById("largeTextEditorBackdrop");
+  const field = document.getElementById("largeTextEditorField");
+
+  document.getElementById("expandBotSystemPromptBtn")?.addEventListener("click", () => {
+    openLargeTextEditor({
+      targetId: "botSystemPrompt",
+      title: "Editar: comportamento (prompt)",
+      maxLength: 4000,
+      hintText:
+        "Dica: use colchetes como {{nome}} para variáveis dinâmicas (quando aplicável).",
+    });
+  });
+
+  document.getElementById("expandBotKnowledgeBaseBtn")?.addEventListener("click", () => {
+    openLargeTextEditor({
+      targetId: "botKnowledgeBase",
+      title: "Editar: base de conhecimento",
+      maxLength: null,
+      hintText: "",
+    });
+  });
+
+  document.getElementById("applyLargeTextEditorBtn")?.addEventListener("click", applyLargeTextEditor);
+  document.getElementById("cancelLargeTextEditorBtn")?.addEventListener("click", closeLargeTextEditor);
+  document.getElementById("closeLargeTextEditorBtn")?.addEventListener("click", closeLargeTextEditor);
+
+  backdrop?.addEventListener("click", (e) => {
+    if (e.target === backdrop) closeLargeTextEditor();
+  });
+
+  field?.addEventListener("input", updateLargeTextEditorCount);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!backdrop?.classList.contains("open")) return;
+    closeLargeTextEditor();
+  });
+}
+
+initLargeTextEditor();
+
 document.getElementById("closeTestModalBtn").addEventListener("click", () => {
   testModal.classList.remove("open");
 });

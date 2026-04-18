@@ -448,7 +448,18 @@
               </span>
             </button>
             <div class="config-capsule-panel" id="capsule-panel-prompt" role="region" aria-labelledby="capsule-trigger-prompt">
-              <label for="botSystemPrompt">SYSTEM PROMPT</label>
+              <div class="config-field-head">
+                <label for="botSystemPrompt">SYSTEM PROMPT</label>
+                <button
+                  type="button"
+                  class="icon-only-btn config-expand-btn"
+                  id="expandBotSystemPromptBtn"
+                  title="Abrir editor grande"
+                  aria-label="Abrir editor grande para o system prompt"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </button>
+              </div>
               <textarea
                 id="botSystemPrompt"
                 maxlength="4000"
@@ -483,7 +494,18 @@
               </span>
             </button>
             <div class="config-capsule-panel" id="capsule-panel-kb" role="region" aria-labelledby="capsule-trigger-kb" hidden>
-              <label for="botKnowledgeBase">Conteúdo</label>
+              <div class="config-field-head">
+                <label for="botKnowledgeBase">CONTEÚDO</label>
+                <button
+                  type="button"
+                  class="icon-only-btn config-expand-btn"
+                  id="expandBotKnowledgeBaseBtn"
+                  title="Abrir editor grande"
+                  aria-label="Abrir editor grande para a base de conhecimento"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </button>
+              </div>
               <textarea
                 id="botKnowledgeBase"
                 placeholder="Produtos, preços, políticas, horários, FAQ..."
@@ -491,6 +513,32 @@
               ></textarea>
             </div>
           </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Editor grande (prompt / base) — estilo n8n -->
+    <div class="modal-backdrop modal-backdrop-nested" id="largeTextEditorBackdrop" aria-hidden="true">
+      <div class="modal modal-large-text-editor" role="dialog" aria-modal="true" aria-labelledby="largeTextEditorTitle">
+        <div class="large-text-editor-toolbar">
+          <h2 id="largeTextEditorTitle">Editor</h2>
+          <div class="large-text-editor-toolbar-actions">
+            <span class="large-text-editor-count" id="largeTextEditorCountWrap" hidden>
+              <span id="largeTextEditorCount">0 / 4000</span>
+            </span>
+            <button type="button" class="icon-btn" id="closeLargeTextEditorBtn" aria-label="Fechar sem aplicar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <textarea id="largeTextEditorField" class="large-text-editor-area" spellcheck="true" rows="1"></textarea>
+        <p class="hint large-text-editor-hint" id="largeTextEditorHint" hidden></p>
+        <div class="large-text-editor-footer">
+          <button type="button" class="btn-ghost" id="cancelLargeTextEditorBtn">Cancelar</button>
+          <button type="button" class="btn-primary" id="applyLargeTextEditorBtn">Aplicar</button>
         </div>
       </div>
     </div>
