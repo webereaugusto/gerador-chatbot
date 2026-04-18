@@ -249,6 +249,8 @@ navItems.forEach((item) => {
     navItems.forEach((n) => n.classList.toggle("active", n === item));
     views.forEach((v) => v.classList.toggle("active", v.dataset.view === target));
 
+    document.body.classList.toggle("inbox-mode", target === "leads");
+
     if (target === "leads") loadLeadsView();
     if (target === "apikeys") loadApiKeysView();
   });
@@ -727,10 +729,13 @@ let inboxSearchTerm = "";
 let inboxRefreshTimer = null;
 
 const INBOX_ICONS = {
-  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
-  whatsapp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.1-1.6-.8-1.9-.9-.3-.1-.4-.1-.6.1-.2.3-.7.9-.8 1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.2-1.3-.8-.7-1.4-1.6-1.5-1.9-.2-.3 0-.4.1-.6l.4-.5c.1-.2.2-.3.3-.5.1-.2 0-.3 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9.6.3 1.1.4 1.5.6.6.2 1.2.2 1.6.1.5-.1 1.6-.6 1.8-1.3.2-.6.2-1.2.2-1.3-.1-.1-.3-.2-.5-.3z"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
+  smile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
+  attach: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
+  bolt: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
 };
 
 function populateLeadsBotSelect() {
@@ -986,7 +991,11 @@ async function loadConversation(leadId, options = {}) {
     <div class="chat-header">
       <div class="chat-header-avatar">${escapeHtml(getInitials(display))}</div>
       <div class="chat-header-main">
-        <div class="chat-header-name">${escapeHtml(display)} ${statusTxt}</div>
+        <div class="chat-header-name">
+          <span>${escapeHtml(display)}</span>
+          <span class="chat-header-sep">·</span>
+          ${statusTxt}
+        </div>
         <div class="chat-header-sub">${escapeHtml(lead.phone)} · criado em ${formatDate(lead.created_at)}</div>
       </div>
       <div class="chat-header-actions">
@@ -1036,7 +1045,10 @@ async function loadConversation(leadId, options = {}) {
   const composer = `
     <div class="chat-composer">
       <div class="chat-composer-inner">
+        <button class="composer-tool" title="Adicionar" tabindex="-1" disabled>${INBOX_ICONS.plus}</button>
         <textarea id="chatComposerInput" class="chat-composer-input" rows="1" placeholder="${escapeHtml(placeholder)}" ${canSend ? "" : "disabled"}></textarea>
+        <button class="composer-tool" title="Emoji" tabindex="-1" disabled>${INBOX_ICONS.smile}</button>
+        <button class="composer-tool" title="Anexo" tabindex="-1" disabled>${INBOX_ICONS.attach}</button>
         <button id="chatSendBtn" class="chat-send" ${canSend ? "" : "disabled"} title="Enviar">${INBOX_ICONS.send}</button>
       </div>
       <div class="chat-composer-footer">
