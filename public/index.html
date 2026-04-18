@@ -283,6 +283,24 @@
           </div>
         </div>
 
+        <div class="section-label">Filtro de teste (WhatsApp)</div>
+        <label class="checkbox-row" for="botWhatsappTestFilterEnabled">
+          <input id="botWhatsappTestFilterEnabled" type="checkbox" />
+          <span>Restringir respostas a um único número (modo teste)</span>
+        </label>
+        <label for="botWhatsappTestPhone">Número permitido</label>
+        <input
+          id="botWhatsappTestPhone"
+          type="text"
+          placeholder="(19) 98194-0463"
+          autocomplete="off"
+        />
+        <p class="hint">
+          Pode digitar com parênteses, traços, +55 ou sem nada — o sistema normaliza para
+          <code>55DDDNUMERO</code>. Quando a opção está ligada, qualquer outro número que mandar mensagem
+          ao webhook é silenciosamente ignorado (resposta 200 sem chamar a IA).
+        </p>
+
         <div class="section-label">Comportamento</div>
         <label for="botSystemPrompt">Prompt</label>
         <textarea

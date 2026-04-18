@@ -18,11 +18,19 @@ create table if not exists public.chatbots (
   evolution_instance text not null default '',
   system_prompt text not null default '',
   knowledge_base text not null default '',
+  whatsapp_test_filter_enabled boolean not null default false,
+  whatsapp_test_phone text not null default '',
   created_at timestamptz not null default now()
 );
 
 create index if not exists chatbots_user_id_idx
   on public.chatbots(user_id);
+
+-- migracao idempotente (projetos antigos sem as colunas de filtro de teste)
+alter table public.chatbots
+  add column if not exists whatsapp_test_filter_enabled boolean not null default false;
+alter table public.chatbots
+  add column if not exists whatsapp_test_phone text not null default '';
 
 -- -----------------------------
 -- Tabela: leads

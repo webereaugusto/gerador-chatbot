@@ -270,6 +270,11 @@ function openBotModal(bot) {
   document.getElementById("botEvolutionApiKey").value = "";
   document.getElementById("botSystemPrompt").value = bot?.systemPrompt || "";
   document.getElementById("botKnowledgeBase").value = bot?.knowledgeBase || "";
+  document.getElementById("botWhatsappTestFilterEnabled").checked = Boolean(
+    bot?.whatsappTestFilterEnabled,
+  );
+  document.getElementById("botWhatsappTestPhone").value =
+    bot?.whatsappTestPhone || "";
 
   document.getElementById("botOpenAiKeyHint").innerText = bot?.hasOpenAiKey
     ? "Chave salva. Preencha apenas para substituir."
@@ -354,9 +359,16 @@ function renderBots() {
         <div class="bot-card">
           <div class="bot-card-header">
             <div class="bot-card-name">${escapeHtml(bot.name)}</div>
-            <span class="badge ${bot.configured ? "ok" : "warn"}">
-              ${bot.configured ? "configurado" : "incompleto"}
-            </span>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              ${
+                bot.whatsappTestFilterEnabled
+                  ? `<span class="badge warn" title="Só responde ao número ${escapeHtml(bot.whatsappTestPhone || "")}">filtro teste</span>`
+                  : ""
+              }
+              <span class="badge ${bot.configured ? "ok" : "warn"}">
+                ${bot.configured ? "configurado" : "incompleto"}
+              </span>
+            </div>
           </div>
 
           <div class="bot-card-meta">
@@ -455,6 +467,10 @@ async function saveBot() {
     evolutionInstance: document.getElementById("botEvolutionInstance").value,
     systemPrompt: document.getElementById("botSystemPrompt").value,
     knowledgeBase: document.getElementById("botKnowledgeBase").value,
+    whatsappTestFilterEnabled: document.getElementById(
+      "botWhatsappTestFilterEnabled",
+    ).checked,
+    whatsappTestPhone: document.getElementById("botWhatsappTestPhone").value,
   };
 
   const statusEl = document.getElementById("botStatus");

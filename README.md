@@ -28,6 +28,14 @@ E ativa RLS para isolar dados por usuario.
 
 **Projetos ja existentes:** rode no SQL Editor apenas o bloco novo da tabela `api_keys`
 e as politicas correspondentes (ou o arquivo inteiro — os `if not exists` sao idempotentes).
+Se a tabela `chatbots` ja existe sem as colunas do filtro de teste, rode tambem:
+
+```sql
+alter table public.chatbots
+  add column if not exists whatsapp_test_filter_enabled boolean not null default false;
+alter table public.chatbots
+  add column if not exists whatsapp_test_phone text not null default '';
+```
 
 ## Rodando
 
@@ -107,6 +115,18 @@ bypass token documentado na Vercel) para que `POST /webhook/evolution/:botId`
 funcione.
 
 O dominio de producao aparece no dashboard apos o deploy (ex. `*.vercel.app`).
+
+### Filtro de teste (whitelist de numero)
+
+No cadastro do chatbot ha a seção **Filtro de teste (WhatsApp)**:
+
+- Marque **Restringir respostas a um único número** quando for testar a integracao com o
+  Evolution e nao quiser que mensagens de contatos reais disparem a IA.
+- Informe o **numero permitido** em qualquer formato: `(19) 98194-0463`, `+55 19 98194-0463`,
+  `5519981940463` etc. O backend normaliza para `55DDDNUMERO` e compara pelos
+  ultimos 10 digitos (tolera o 9o digito variavel).
+- Com a opcao ligada, qualquer outro numero que chegar no webhook recebe `200 { ignored: true, reason: "test_filter" }` e **nao** gera lead nem custo de OpenAI.
+- Mensagens de grupos (`@g.us`) tambem sao ignoradas.
 
 ## APIs principais
 

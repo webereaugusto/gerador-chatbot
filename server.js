@@ -64,6 +64,32 @@ function sanitizePhone(remoteJid) {
   return phone.replace(/\D/g, "");
 }
 
+// Normaliza telefone BR para a forma canonica 55DDDNUMERO (so digitos).
+// Aceita entradas do usuario como "(19) 98194-0463", "+55 19 98194-0463",
+// "019 98194-0463" etc. e do webhook (ex.: "5519981940463").
+function normalizeBrPhone(input) {
+  let digits = String(input || "").replace(/\D/g, "");
+  if (!digits) return "";
+  while (digits.startsWith("0")) digits = digits.slice(1);
+  if (digits.length === 10 || digits.length === 11) {
+    digits = "55" + digits;
+  }
+  return digits;
+}
+
+// Compara um telefone recebido pelo webhook com o whitelist do chatbot.
+// Permite match exato OU suffix dos ultimos 10 digitos (tolerancia ao 9o
+// digito variavel no Brasil).
+function phoneMatches(incoming, stored) {
+  const a = normalizeBrPhone(incoming);
+  const b = normalizeBrPhone(stored);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const suffixLen = 10;
+  if (a.length < suffixLen || b.length < suffixLen) return false;
+  return a.slice(-suffixLen) === b.slice(-suffixLen);
+}
+
 function extractIncomingMessage(payload) {
   return (
     payload?.data?.message?.conversation ||
@@ -109,6 +135,8 @@ function serializeBot(req, bot) {
     evolutionInstance: bot.evolution_instance,
     hasOpenAiKey: Boolean(bot.openai_api_key),
     hasEvolutionKey: Boolean(bot.evolution_api_key),
+    whatsappTestFilterEnabled: Boolean(bot.whatsapp_test_filter_enabled),
+    whatsappTestPhone: bot.whatsapp_test_phone || "",
     configured: isBotConfigured(bot),
     webhookUrl: buildBotWebhookUrl(req, bot.id),
     createdAt: bot.created_at,
@@ -285,6 +313,7 @@ function serializeBotV1(req, bot) {
     name: bot.name,
     createdAt: bot.created_at,
     configured: isBotConfigured(bot),
+    whatsappTestFilterEnabled: Boolean(bot.whatsapp_test_filter_enabled),
     webhookUrl: buildBotWebhookUrl(req, bot.id),
   };
 }
@@ -324,7 +353,20 @@ function readBotFields(body) {
     evolution_instance: String(body?.evolutionInstance || "").trim(),
     system_prompt: String(body?.systemPrompt || "").trim(),
     knowledge_base: String(body?.knowledgeBase || "").trim(),
+    whatsapp_test_filter_enabled: Boolean(body?.whatsappTestFilterEnabled),
+    whatsapp_test_phone: normalizeBrPhone(body?.whatsappTestPhone || ""),
   };
+}
+
+function validateTestFilter(fields) {
+  if (!fields.whatsapp_test_filter_enabled) return null;
+  if (!fields.whatsapp_test_phone) {
+    return "Com o filtro de teste ligado, informe o numero permitido.";
+  }
+  if (fields.whatsapp_test_phone.replace(/\D/g, "").length < 10) {
+    return "Numero do filtro de teste parece invalido. Use DDD + numero (ex.: (19) 98194-0463).";
+  }
+  return null;
 }
 
 app.get("/api/chatbots", requireUser, async (req, res) => {
@@ -343,6 +385,8 @@ app.post("/api/chatbots", requireUser, async (req, res) => {
   if (!fields.name) {
     return res.status(400).json({ error: "Nome do chatbot e obrigatorio." });
   }
+  const filterError = validateTestFilter(fields);
+  if (filterError) return res.status(400).json({ error: filterError });
 
   const { data, error } = await supabaseAdmin
     .from("chatbots")
@@ -355,6 +399,8 @@ app.post("/api/chatbots", requireUser, async (req, res) => {
       evolution_instance: fields.evolution_instance,
       system_prompt: fields.system_prompt || fallbackPrompt,
       knowledge_base: fields.knowledge_base,
+      whatsapp_test_filter_enabled: fields.whatsapp_test_filter_enabled,
+      whatsapp_test_phone: fields.whatsapp_test_phone,
     })
     .select("*")
     .single();
@@ -373,6 +419,8 @@ app.put("/api/chatbots/:id", requireUser, async (req, res) => {
   if (!fields.name) {
     return res.status(400).json({ error: "Nome do chatbot e obrigatorio." });
   }
+  const filterError = validateTestFilter(fields);
+  if (filterError) return res.status(400).json({ error: filterError });
 
   const update = {
     name: fields.name,
@@ -380,6 +428,8 @@ app.put("/api/chatbots/:id", requireUser, async (req, res) => {
     evolution_instance: fields.evolution_instance,
     system_prompt: fields.system_prompt || fallbackPrompt,
     knowledge_base: fields.knowledge_base,
+    whatsapp_test_filter_enabled: fields.whatsapp_test_filter_enabled,
+    whatsapp_test_phone: fields.whatsapp_test_phone,
   };
 
   if (fields.openai_api_key) update.openai_api_key = fields.openai_api_key;
@@ -777,12 +827,24 @@ app.post("/webhook/evolution/:botId", async (req, res) => {
 
     const remoteJid = req.body?.data?.key?.remoteJid || req.body?.remoteJid;
     const fromMe = req.body?.data?.key?.fromMe || false;
+    const isGroup =
+      typeof remoteJid === "string" && remoteJid.includes("@g.us");
     const number = sanitizePhone(remoteJid);
     const text = extractIncomingMessage(req.body);
     const pushName = extractPushName(req.body);
 
-    if (!number || !text || fromMe) {
+    if (!number || !text || fromMe || isGroup) {
       return res.status(200).json({ ignored: true });
+    }
+
+    if (
+      bot.whatsapp_test_filter_enabled &&
+      !phoneMatches(number, bot.whatsapp_test_phone)
+    ) {
+      console.log(
+        `[WEBHOOK filter] bot=${bot.id} bloqueou ${number} (whitelist=${bot.whatsapp_test_phone})`,
+      );
+      return res.status(200).json({ ignored: true, reason: "test_filter" });
     }
 
     const lead = await upsertLead(bot.id, number, pushName);
