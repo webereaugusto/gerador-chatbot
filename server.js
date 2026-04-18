@@ -418,8 +418,13 @@ app.post("/api/public/chat/:id", async (req, res) => {
     res.json({ reply });
   } catch (error) {
     const src = error.source || "unknown";
-    console.error(`[WIDGET ${src}] ${error.message}`);
-    res.status(500).json({ error: "Erro ao processar mensagem.", source: src });
+    const detail = error.message || String(error);
+    console.error(`[WIDGET ${src}] ${detail} | code=${error.code || "?"}`);
+    res.status(500).json({
+      error: "Erro ao processar mensagem.",
+      source: src,
+      detail,
+    });
   }
 });
 
@@ -449,16 +454,33 @@ async function upsertLead(chatbotId, phone, pushName, source = "whatsapp") {
     return data;
   }
 
-  const { data, error } = await supabaseAdmin
+  const payload = {
+    chatbot_id: chatbotId,
+    phone,
+    name: pushName || null,
+    source,
+  };
+
+  let { data, error } = await supabaseAdmin
     .from("leads")
-    .insert({
-      chatbot_id: chatbotId,
-      phone,
-      name: pushName || null,
-      source,
-    })
+    .insert(payload)
     .select("*")
     .single();
+
+  // Fallback: banco ainda sem a coluna `source` (migracao pendente)
+  if (error && error.code === "42703") {
+    console.warn(
+      "[LEADS] coluna `source` nao existe ainda. Rode o ALTER TABLE no Supabase. Continuando sem source.",
+    );
+    delete payload.source;
+    const retry = await supabaseAdmin
+      .from("leads")
+      .insert(payload)
+      .select("*")
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) throw error;
   return data;
