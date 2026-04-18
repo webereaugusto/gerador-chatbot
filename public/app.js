@@ -162,10 +162,14 @@ async function handleAuthSubmit() {
   }
 
   if (!authConfigReady || !sb) {
+    // Não sobrescrever o erro real já mostrado pelo bootstrap (ex.: env vazio).
+    if (statusEl.classList.contains("error") && statusEl.innerText.trim().length > 0) {
+      return;
+    }
     statusEl.className = "status-text error";
     statusEl.innerText =
-      "Aguarde o fim do carregamento acima. Se aparecer erro vermelho, " +
-      "corrija o Vercel (Deployment Protection desligada + variáveis SUPABASE_*) e recarregue (Ctrl+F5).";
+      "Ainda conectando… Se não habilitar o botão Entrar em alguns segundos, recarregue (Ctrl+F5) " +
+      "e confira SUPABASE_URL e SUPABASE_ANON_KEY no projeto Vercel.";
     return;
   }
 
@@ -221,7 +225,11 @@ document.getElementById("authSubmitBtn").addEventListener("click", handleAuthSub
 
 ["authEmail", "authPassword"].forEach((id) => {
   document.getElementById(id).addEventListener("keydown", (e) => {
-    if (e.key === "Enter") handleAuthSubmit();
+    if (e.key !== "Enter") return;
+    const submitBtn = document.getElementById("authSubmitBtn");
+    // Enter não deve enviar se o botão está desabilitado (config ainda carregando).
+    if (submitBtn?.disabled) return;
+    handleAuthSubmit();
   });
 });
 
