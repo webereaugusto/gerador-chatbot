@@ -260,34 +260,56 @@ navItems.forEach((item) => {
 const botModal = document.getElementById("botModal");
 const testModal = document.getElementById("testModal");
 
+function setFieldValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el.type === "checkbox") el.checked = Boolean(value);
+  else el.value = value === undefined || value === null ? "" : value;
+}
+
+function getFieldValue(id, fallback) {
+  const el = document.getElementById(id);
+  if (!el) return fallback;
+  if (el.type === "checkbox") return el.checked;
+  return el.value;
+}
+
+function setFieldText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.innerText = text;
+}
+
 function openBotModal(bot) {
-  document.getElementById("botModalTitle").innerText = bot ? "Editar chatbot" : "Novo chatbot";
-  document.getElementById("botId").value = bot?.id || "";
-  document.getElementById("botName").value = bot?.name || "";
-  document.getElementById("botOpenAiKey").value = "";
-  document.getElementById("botSystemPrompt").value = bot?.systemPrompt || "";
-  document.getElementById("botKnowledgeBase").value = bot?.knowledgeBase || "";
-  document.getElementById("botWhatsappTestFilterEnabled").checked = Boolean(
-    bot?.whatsappTestFilterEnabled,
+  setFieldText("botModalTitle", bot ? "Editar chatbot" : "Novo chatbot");
+  setFieldValue("botId", bot?.id || "");
+  setFieldValue("botName", bot?.name || "");
+  setFieldValue("botOpenAiKey", "");
+  setFieldValue("botSystemPrompt", bot?.systemPrompt || "");
+  setFieldValue("botKnowledgeBase", bot?.knowledgeBase || "");
+  setFieldValue(
+    "botWhatsappTestFilterEnabled",
+    Boolean(bot?.whatsappTestFilterEnabled),
   );
-  document.getElementById("botWhatsappTestPhone").value =
-    bot?.whatsappTestPhone || "";
+  setFieldValue("botWhatsappTestPhone", bot?.whatsappTestPhone || "");
 
-  document.getElementById("botOpenAiModel").value =
-    bot?.openaiModel || "gpt-4o-mini";
-  document.getElementById("botTemperature").value =
-    bot?.temperature ?? 0.6;
-  document.getElementById("botMaxTokens").value = bot?.maxTokens ?? 400;
-  document.getElementById("botHumanizeEnabled").checked = bot
-    ? Boolean(bot.humanizeEnabled)
-    : true;
+  setFieldValue("botOpenAiModel", bot?.openaiModel || "gpt-4o-mini");
+  setFieldValue("botTemperature", bot?.temperature ?? 0.6);
+  setFieldValue("botMaxTokens", bot?.maxTokens ?? 400);
+  setFieldValue(
+    "botHumanizeEnabled",
+    bot ? Boolean(bot.humanizeEnabled) : true,
+  );
 
-  document.getElementById("botOpenAiKeyHint").innerText = bot?.hasOpenAiKey
-    ? "Chave salva. Preencha apenas para substituir."
-    : "";
+  setFieldText(
+    "botOpenAiKeyHint",
+    bot?.hasOpenAiKey ? "Chave salva. Preencha apenas para substituir." : "",
+  );
 
-  document.getElementById("botStatus").innerText = "";
-  document.getElementById("botStatus").className = "status-text";
+  const statusEl = document.getElementById("botStatus");
+  if (statusEl) {
+    statusEl.innerText = "";
+    statusEl.className = "status-text";
+  }
   botModal.classList.add("open");
 }
 
@@ -499,40 +521,50 @@ async function copyToClipboard(url, btn) {
 }
 
 async function saveBot() {
-  const id = document.getElementById("botId").value;
+  const id = getFieldValue("botId", "");
+  const temperatureRaw = getFieldValue("botTemperature", "0.6");
+  const maxTokensRaw = getFieldValue("botMaxTokens", "400");
   const payload = {
-    name: document.getElementById("botName").value,
-    openaiApiKey: document.getElementById("botOpenAiKey").value,
-    systemPrompt: document.getElementById("botSystemPrompt").value,
-    knowledgeBase: document.getElementById("botKnowledgeBase").value,
-    whatsappTestFilterEnabled: document.getElementById(
-      "botWhatsappTestFilterEnabled",
-    ).checked,
-    whatsappTestPhone: document.getElementById("botWhatsappTestPhone").value,
-    openaiModel: document.getElementById("botOpenAiModel").value,
-    temperature: parseFloat(document.getElementById("botTemperature").value),
-    maxTokens: parseInt(document.getElementById("botMaxTokens").value, 10),
-    humanizeEnabled: document.getElementById("botHumanizeEnabled").checked,
+    name: getFieldValue("botName", ""),
+    openaiApiKey: getFieldValue("botOpenAiKey", ""),
+    systemPrompt: getFieldValue("botSystemPrompt", ""),
+    knowledgeBase: getFieldValue("botKnowledgeBase", ""),
+    whatsappTestFilterEnabled: Boolean(
+      getFieldValue("botWhatsappTestFilterEnabled", false),
+    ),
+    whatsappTestPhone: getFieldValue("botWhatsappTestPhone", ""),
+    openaiModel: getFieldValue("botOpenAiModel", "gpt-4o-mini"),
+    temperature: parseFloat(temperatureRaw) || 0.6,
+    maxTokens: parseInt(maxTokensRaw, 10) || 400,
+    humanizeEnabled: Boolean(getFieldValue("botHumanizeEnabled", true)),
   };
 
   const statusEl = document.getElementById("botStatus");
-  statusEl.className = "status-text";
-  statusEl.innerText = "Salvando...";
+  if (statusEl) {
+    statusEl.className = "status-text";
+    statusEl.innerText = "Salvando...";
+  }
 
   const url = id ? `/api/chatbots/${id}` : "/api/chatbots";
   const method = id ? "PUT" : "POST";
 
   const res = await authFetch(url, { method, body: JSON.stringify(payload) });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    statusEl.className = "status-text error";
-    statusEl.innerText = data.error || "Falha ao salvar.";
+    if (statusEl) {
+      statusEl.className = "status-text error";
+      statusEl.innerText = data.error || "Falha ao salvar.";
+    } else {
+      alert(data.error || "Falha ao salvar.");
+    }
     return;
   }
 
-  statusEl.className = "status-text ok";
-  statusEl.innerText = "Salvo.";
+  if (statusEl) {
+    statusEl.className = "status-text ok";
+    statusEl.innerText = "Salvo.";
+  }
   await loadChatbots();
   setTimeout(closeBotModal, 500);
 }
