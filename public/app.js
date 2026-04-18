@@ -350,22 +350,36 @@ function renderBots() {
         : "Sem base de conhecimento.";
 
       const status = bot.whatsappConnectionStatus || "disconnected";
-      const statusLabel =
-        status === "open"
-          ? "WhatsApp conectado"
-          : status === "qr"
-            ? "Aguardando QR"
-            : status === "connecting"
-              ? "Conectando..."
-              : "WhatsApp desconectado";
-      const statusBadgeClass = status === "open" ? "ok" : "warn";
+      const statusMap = {
+        open: {
+          label: "WhatsApp conectado",
+          cls: "wa-status wa-status-ok",
+          icon: "✓",
+        },
+        qr: {
+          label: "Aguardando leitura do QR",
+          cls: "wa-status wa-status-warn",
+          icon: "⧗",
+        },
+        connecting: {
+          label: "Pareando com WhatsApp...",
+          cls: "wa-status wa-status-warn",
+          icon: "⧗",
+        },
+        disconnected: {
+          label: "WhatsApp desconectado",
+          cls: "wa-status wa-status-off",
+          icon: "×",
+        },
+      };
+      const s = statusMap[status] || statusMap.disconnected;
 
       const connectButton =
         status === "open"
           ? `<button class="btn-ghost danger" data-action="disconnect" data-id="${bot.id}">Desconectar WhatsApp</button>`
-          : `<button class="btn-ghost" data-action="connect" data-id="${bot.id}">${
-              status === "qr" || status === "connecting" ? "Ver QR novamente" : "Conectar WhatsApp"
-            }</button>`;
+          : status === "qr" || status === "connecting"
+            ? `<button class="btn-primary" data-action="connect" data-id="${bot.id}">Ver QR novamente</button>`
+            : `<button class="btn-primary" data-action="connect" data-id="${bot.id}">Conectar WhatsApp</button>`;
 
       return `
         <div class="bot-card">
@@ -377,7 +391,20 @@ function renderBots() {
                   ? `<span class="badge warn" title="Só responde ao número ${escapeHtml(bot.whatsappTestPhone || "")}">filtro teste</span>`
                   : ""
               }
-              <span class="badge ${statusBadgeClass}">${statusLabel}</span>
+            </div>
+          </div>
+
+          <div class="${s.cls}">
+            <span class="wa-status-icon">${s.icon}</span>
+            <div class="wa-status-text">
+              <div class="wa-status-title">${s.label}</div>
+              <div class="wa-status-sub">${
+                bot.whatsappConnectedAt
+                  ? "última conexão: " + new Date(bot.whatsappConnectedAt).toLocaleString("pt-BR")
+                  : status === "disconnected"
+                    ? "clique em Conectar WhatsApp para escanear o QR"
+                    : "escaneie o QR com o WhatsApp do celular"
+              }</div>
             </div>
           </div>
 
@@ -387,12 +414,11 @@ function renderBots() {
               <span class="meta-value">${bot.hasOpenAiKey ? "chave salva" : "pendente"}</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">Última conexão</span>
-              <span class="meta-value">${bot.whatsappConnectedAt ? new Date(bot.whatsappConnectedAt).toLocaleString("pt-BR") : "—"}</span>
+              <span class="meta-label">Prompt</span>
+              <span class="meta-value" title="${escapeHtml(bot.systemPrompt || "")}">${escapeHtml(prompt)}</span>
             </div>
           </div>
 
-          <div class="bot-card-field"><strong>Prompt:</strong> ${escapeHtml(prompt)}</div>
           <div class="bot-card-field"><strong>Base:</strong> ${escapeHtml(knowledge)}</div>
 
           <div class="bot-card-footer">

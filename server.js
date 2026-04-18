@@ -238,15 +238,20 @@ function normalizeEvolutionState(raw) {
 }
 
 function extractQrBase64(raw) {
-  return (
+  const candidate =
     raw?.qrcode?.base64 ||
-    raw?.qrcode ||
     raw?.base64 ||
-    raw?.qr ||
+    raw?.qr?.base64 ||
     raw?.instance?.qrcode?.base64 ||
+    raw?.qrcode ||
+    raw?.qr ||
     raw?.instance?.qrcode ||
-    null
-  );
+    null;
+  if (!candidate) return null;
+  if (typeof candidate !== "string") return null;
+  // Ignora se nao parece base64/url (ex.: objeto virou string "[object Object]")
+  if (candidate.startsWith("[object")) return null;
+  return candidate;
 }
 
 async function evoRequest(method, path, { body, instanceKey } = {}) {
@@ -288,24 +293,35 @@ async function evoRequest(method, path, { body, instanceKey } = {}) {
 }
 
 async function evoCreateInstance(instanceName, webhookUrl) {
-  return evoRequest("POST", "/instance/create", {
-    body: {
-      instanceName,
-      integration: "WHATSAPP-BAILEYS",
-      qrcode: true,
-      webhook: {
-        enabled: true,
-        url: webhookUrl,
-        events: ["MESSAGES_UPSERT"],
-        webhook_by_events: false,
-        webhook_base64: false,
-      },
+  // Formato compativel com Evolution API v2 (aceita os dois formatos de webhook)
+  const payload = {
+    instanceName,
+    integration: "WHATSAPP-BAILEYS",
+    qrcode: true,
+    webhook: {
+      url: webhookUrl,
+      byEvents: false,
+      base64: false,
+      events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "QRCODE_UPDATED"],
+      // mantem campos v1 por retrocompatibilidade
+      enabled: true,
+      webhook_by_events: false,
+      webhook_base64: false,
     },
-  });
+  };
+  const res = await evoRequest("POST", "/instance/create", { body: payload });
+  console.log(`[EVO create] instance=${instanceName} ok`);
+  return res;
 }
 
 async function evoGetQr(instanceName) {
-  return evoRequest("GET", `/instance/connect/${encodeURIComponent(instanceName)}`);
+  const res = await evoRequest(
+    "GET",
+    `/instance/connect/${encodeURIComponent(instanceName)}`,
+  );
+  const hasQr = Boolean(extractQrBase64(res));
+  console.log(`[EVO qr] instance=${instanceName} hasQr=${hasQr}`);
+  return res;
 }
 
 async function evoGetState(instanceName) {
@@ -316,12 +332,22 @@ async function evoGetState(instanceName) {
 }
 
 async function evoSetWebhook(instanceName, webhookUrl) {
+  // Evolution v2 usa POST /webhook/set/:name com payload {url, events, byEvents, base64}
   return evoRequest("POST", `/webhook/set/${encodeURIComponent(instanceName)}`, {
     body: {
+      url: webhookUrl,
+      enabled: true,
+      byEvents: false,
+      base64: false,
+      events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "QRCODE_UPDATED"],
+      webhook_by_events: false,
+      webhook_base64: false,
       webhook: {
-        enabled: true,
         url: webhookUrl,
-        events: ["MESSAGES_UPSERT"],
+        enabled: true,
+        byEvents: false,
+        base64: false,
+        events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "QRCODE_UPDATED"],
         webhook_by_events: false,
         webhook_base64: false,
       },
@@ -616,62 +642,59 @@ app.post("/api/chatbots/:id/connect", requireUser, async (req, res) => {
     const instanceName = bot.evolution_instance || buildInstanceName(bot.id);
     const webhookUrl = buildBotWebhookUrl(req, bot.id);
 
-    // Ja existe instancia: checar estado antes de recriar
+    console.log(
+      `[EVO connect] bot=${bot.id} instance=${instanceName} webhook=${webhookUrl}`,
+    );
+
+    // 1) Se ja existe instancia: checar estado primeiro
     if (bot.evolution_instance) {
       try {
         const state = await evoGetState(instanceName);
         const status = normalizeEvolutionState(state);
+        console.log(`[EVO connect] estado atual=${status}`);
         if (status === "open") {
           await updateBotConnectionStatus(bot.id, "open");
           return res.json({ status: "open" });
         }
-        const qrData = await evoGetQr(instanceName);
-        const qrcode = extractQrBase64(qrData);
-        await evoSetWebhook(instanceName, webhookUrl).catch(() => {});
-        await updateBotConnectionStatus(bot.id, "qr", {
-          evolution_base_url: evolutionBaseUrl,
-          evolution_instance: instanceName,
-        });
-        return res.json({ status: "qr", qrcode, instance: instanceName });
-      } catch (_) {
-        // Cai no fluxo de recriacao abaixo
+      } catch (err) {
+        console.warn(`[EVO connect] state falhou (${err.message}), vou tentar criar.`);
       }
     }
 
-    // Criar instancia nova (ou recriar apos falha de state)
-    let created;
+    // 2) Garantir que a instancia existe (cria se necessario; ignora "ja existe")
     try {
-      created = await evoCreateInstance(instanceName, webhookUrl);
+      await evoCreateInstance(instanceName, webhookUrl);
     } catch (err) {
-      // Instancia pode ja existir no Evolution: tentar pegar QR direto
-      if (err.httpStatus === 409 || err.httpStatus === 403) {
-        const qrData = await evoGetQr(instanceName);
-        const qrcode = extractQrBase64(qrData);
-        await evoSetWebhook(instanceName, webhookUrl).catch(() => {});
-        await updateBotConnectionStatus(bot.id, "qr", {
-          evolution_base_url: evolutionBaseUrl,
-          evolution_instance: instanceName,
-        });
-        return res.json({ status: "qr", qrcode, instance: instanceName });
+      if (err.httpStatus === 409 || err.httpStatus === 403 || err.httpStatus === 400) {
+        console.log(`[EVO connect] instancia ja existe (status=${err.httpStatus}), reusando.`);
+      } else {
+        throw err;
       }
-      throw err;
     }
 
-    const instanceHash =
-      created?.hash?.apikey ||
-      created?.hash ||
-      created?.instance?.apikey ||
-      created?.apikey ||
-      "";
-    const qrcode = extractQrBase64(created);
+    // 3) Garantir webhook atualizado (idempotente, se falhar nao trava o fluxo)
+    try {
+      await evoSetWebhook(instanceName, webhookUrl);
+    } catch (err) {
+      console.warn(`[EVO connect] setWebhook falhou: ${err.message}`);
+    }
+
+    // 4) SEMPRE buscar QR fresh via GET /instance/connect/:name
+    //    O QR retornado no /instance/create fica obsoleto rapido, por isso pedimos novo.
+    const qrData = await evoGetQr(instanceName);
+    const qrcode = extractQrBase64(qrData);
+    const pairingCode = qrData?.pairingCode || qrData?.code || null;
+
+    if (!qrcode) {
+      console.error(`[EVO connect] QR vazio no retorno: ${JSON.stringify(qrData).slice(0, 400)}`);
+    }
 
     await updateBotConnectionStatus(bot.id, "qr", {
       evolution_base_url: evolutionBaseUrl,
       evolution_instance: instanceName,
-      evolution_api_key: instanceHash || evolutionGlobalKey,
     });
 
-    res.json({ status: "qr", qrcode, instance: instanceName });
+    res.json({ status: "qr", qrcode, pairingCode, instance: instanceName });
   } catch (error) {
     console.error(`[EVO connect] ${error.message}`);
     res.status(500).json({
