@@ -3,260 +3,848 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Teste API v1 | Gerador de Chatbot</title>
+    <title>CRM de testes — API v1 | Gerador de Chatbot</title>
     <style>
       :root {
         --bg: #0b0d12;
-        --card: #12151c;
+        --bg-elev: #12151c;
+        --bg-elev-2: #181c25;
         --border: #232836;
+        --border-strong: #2f3546;
         --text: #e6e8ee;
         --muted: #8b92a5;
         --primary: #6366f1;
-        --danger: #f87171;
-        --ok: #4ade80;
+        --primary-hover: #7c7ff3;
+        --success: #22c55e;
+        --danger: #ef4444;
+        --user-bubble: #1f2535;
+        --assistant-bubble: #6366f1;
       }
       * {
         box-sizing: border-box;
       }
+      html,
       body {
         margin: 0;
-        padding: 24px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        font-size: 14px;
+        padding: 0;
+        height: 100%;
         background: var(--bg);
         color: var(--text);
-        max-width: 920px;
-        margin-inline: auto;
-      }
-      h1 {
-        font-size: 1.5rem;
-        margin: 0 0 8px;
-      }
-      .muted {
-        color: var(--muted);
-        margin: 0 0 20px;
-      }
-      label {
-        display: block;
-        margin-top: 12px;
-        margin-bottom: 4px;
-        color: var(--muted);
-        font-size: 12px;
-      }
-      input[type="text"],
-      input[type="password"],
-      input[type="number"] {
-        width: 100%;
-        max-width: 100%;
-        padding: 10px 12px;
-        border-radius: 8px;
-        border: 1px solid var(--border);
-        background: var(--card);
-        color: var(--text);
-      }
-      .row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 14px;
-        align-items: center;
-      }
-      button {
-        padding: 10px 16px;
-        border-radius: 8px;
-        border: none;
-        background: var(--primary);
-        color: #fff;
-        cursor: pointer;
-        font-weight: 600;
-      }
-      button:hover {
-        filter: brightness(1.08);
-      }
-      button.secondary {
-        background: var(--card);
-        border: 1px solid var(--border);
-        color: var(--text);
-      }
-      pre#out {
-        margin-top: 16px;
-        padding: 16px;
-        border-radius: 10px;
-        background: #181c25;
-        border: 1px solid var(--border);
-        overflow: auto;
-        max-height: 55vh;
-        font-size: 12px;
-        line-height: 1.45;
-        white-space: pre-wrap;
-        word-break: break-word;
-      }
-      #statusLine {
-        margin-top: 12px;
-        font-size: 13px;
-      }
-      #statusLine.ok {
-        color: var(--ok);
-      }
-      #statusLine.err {
-        color: var(--danger);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 14px;
+        overflow: hidden;
       }
       a {
         color: var(--primary);
       }
-      .grid2 {
+
+      .layout {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto 1fr;
+        height: 100vh;
+      }
+
+      /* Topbar */
+      .topbar {
+        border-bottom: 1px solid var(--border);
+        background: var(--bg-elev);
+        padding: 10px 16px;
+      }
+      .topbar-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+      .topbar-row + .topbar-row {
+        margin-top: 8px;
+      }
+      .topbar h1 {
+        font-size: 15px;
+        margin: 0 auto 0 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .topbar h1 .logo {
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 12px;
+      }
+      .topbar .links {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .topbar input,
+      .topbar select {
+        background: var(--bg-elev-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        padding: 8px 10px;
+        font-size: 13px;
+        min-width: 160px;
+      }
+      .topbar input[type="password"] {
+        min-width: 280px;
+        font-family: ui-monospace, monospace;
+      }
+      .topbar .base-input {
+        min-width: 260px;
+      }
+      .topbar button {
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .topbar button:hover {
+        background: var(--primary-hover);
+      }
+      .topbar button.secondary {
+        background: var(--bg-elev-2);
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+      .topbar .status {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .topbar .status.ok {
+        color: var(--success);
+      }
+      .topbar .status.err {
+        color: var(--danger);
+      }
+
+      /* CRM grid */
+      .crm {
+        display: grid;
+        grid-template-columns: 340px 1fr 340px;
+        min-height: 0;
+      }
+
+      .panel {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        min-width: 0;
+        background: var(--bg-elev);
+        border-right: 1px solid var(--border);
+        overflow: hidden;
+      }
+      .panel:last-child {
+        border-right: none;
+        border-left: 1px solid var(--border);
+      }
+
+      .panel-header {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .panel-header h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        margin: 0;
+        font-weight: 600;
+      }
+      .panel-header .count {
+        font-size: 11px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: var(--bg-elev-2);
+        border: 1px solid var(--border);
+        color: var(--muted);
+      }
+      .panel-body {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 8px;
+      }
+
+      /* Leads list */
+      .lead-item {
+        padding: 10px 12px;
+        border-radius: 10px;
+        cursor: pointer;
+        display: grid;
+        grid-template-columns: 38px 1fr auto;
+        gap: 10px;
+        align-items: center;
+        border: 1px solid transparent;
+      }
+      .lead-item:hover {
+        background: var(--bg-elev-2);
+      }
+      .lead-item.active {
+        background: rgba(99, 102, 241, 0.15);
+        border-color: rgba(99, 102, 241, 0.35);
+      }
+      .avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: var(--bg-elev-2);
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text);
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .lead-name {
+        font-weight: 600;
+        font-size: 14px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .lead-sub {
+        font-size: 12px;
+        color: var(--muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .lead-meta {
+        text-align: right;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .badge {
+        display: inline-block;
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        background: var(--bg-elev-2);
+      }
+      .badge.web {
+        color: #a78bfa;
+        border-color: rgba(167, 139, 250, 0.3);
+      }
+      .badge.whatsapp {
+        color: #4ade80;
+        border-color: rgba(74, 222, 128, 0.3);
+      }
+
+      .empty {
+        text-align: center;
+        padding: 36px 16px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .empty strong {
+        color: var(--text);
+      }
+
+      /* Conversation */
+      .conv-header {
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
         gap: 12px;
       }
-      @media (max-width: 640px) {
-        .grid2 {
+      .conv-header .meta {
+        flex: 1;
+        min-width: 0;
+      }
+      .conv-header .title {
+        font-weight: 600;
+        font-size: 15px;
+      }
+      .conv-header .sub {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .conv-body {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 18px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .bubble {
+        max-width: 75%;
+        padding: 10px 14px;
+        border-radius: 14px;
+        font-size: 13.5px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .bubble.user {
+        align-self: flex-start;
+        background: var(--user-bubble);
+        border: 1px solid var(--border-strong);
+        border-bottom-left-radius: 4px;
+      }
+      .bubble.assistant {
+        align-self: flex-end;
+        background: var(--assistant-bubble);
+        color: #fff;
+        border-bottom-right-radius: 4px;
+      }
+      .bubble .time {
+        display: block;
+        margin-top: 4px;
+        font-size: 10px;
+        opacity: 0.75;
+      }
+
+      /* Info panel right */
+      .info-section {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .info-section h3 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 0 0 8px;
+      }
+      .kv {
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        gap: 4px 10px;
+        font-size: 12.5px;
+      }
+      .kv div:nth-child(odd) {
+        color: var(--muted);
+      }
+      .kv div:nth-child(even) {
+        word-break: break-all;
+      }
+      details.raw {
+        padding: 12px 16px;
+      }
+      details.raw summary {
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      details.raw pre {
+        margin-top: 8px;
+        background: var(--bg-elev-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 11.5px;
+        color: #c8d0e0;
+        overflow: auto;
+        max-height: 320px;
+      }
+
+      @media (max-width: 1000px) {
+        .crm {
           grid-template-columns: 1fr;
+        }
+        .panel {
+          border-right: none;
+          border-left: none;
+          border-bottom: 1px solid var(--border);
+        }
+        .panel:last-child {
+          border-left: none;
         }
       }
     </style>
   </head>
   <body>
-    <p><a href="/">← Painel</a> · <a href="/api-manual.html">Manual da API</a></p>
-    <h1>Teste da API externa (v1)</h1>
-    <p class="muted">
-      Preencha a URL base (mesmo site do painel), cole a chave <code>gc_live_…</code> e use os botões. Os dados
-      aparecem abaixo em JSON.
-    </p>
+    <div class="layout">
+      <header class="topbar">
+        <div class="topbar-row">
+          <h1><span class="logo">GC</span> CRM de testes — API v1</h1>
+          <span class="links">
+            <a href="/">Painel</a>
+            ·
+            <a href="/api-manual.html">Manual</a>
+          </span>
+        </div>
 
-    <label for="baseUrl">URL base (sem barra no final)</label>
-    <input type="text" id="baseUrl" placeholder="https://gerador-chatbot-alpha.vercel.app" />
+        <div class="topbar-row">
+          <input
+            type="text"
+            id="baseUrl"
+            class="base-input"
+            placeholder="https://seu-dominio.vercel.app"
+          />
+          <input type="password" id="apiKey" placeholder="Chave gc_live_..." autocomplete="off" />
+          <select id="chatbotSelect">
+            <option value="">— selecione um chatbot —</option>
+          </select>
+          <button type="button" id="connectBtn">Conectar</button>
+          <button type="button" class="secondary" id="refreshBtn" title="Recarregar leads">Atualizar</button>
+          <span id="statusLine" class="status"></span>
+        </div>
+      </header>
 
-    <label for="apiKey">Chave de API</label>
-    <input type="password" id="apiKey" placeholder="gc_live_..." autocomplete="off" />
+      <section class="crm">
+        <!-- Leads -->
+        <aside class="panel" id="leadsPanel">
+          <div class="panel-header">
+            <h2>Leads</h2>
+            <span class="count" id="leadsCount">0</span>
+          </div>
+          <div class="panel-body" id="leadsList">
+            <div class="empty">
+              <strong>Conecte</strong><br />
+              preencha URL, chave e escolha um chatbot.
+            </div>
+          </div>
+        </aside>
 
-    <div class="grid2">
-      <div>
-        <label for="chatbotId">ID do chatbot (UUID)</label>
-        <input type="text" id="chatbotId" placeholder="obtenha em GET chatbots" />
-      </div>
-      <div>
-        <label for="leadId">ID do lead (UUID)</label>
-        <input type="text" id="leadId" placeholder="obtenha na lista de leads" />
-      </div>
+        <!-- Conversation -->
+        <main class="panel" id="convPanel">
+          <div class="conv-header" id="convHeader" style="display: none">
+            <div class="avatar" id="convAvatar">?</div>
+            <div class="meta">
+              <div class="title" id="convTitle"></div>
+              <div class="sub" id="convSub"></div>
+            </div>
+          </div>
+          <div class="conv-body" id="convBody">
+            <div class="empty">Escolha um lead na lista ao lado.</div>
+          </div>
+        </main>
+
+        <!-- Details -->
+        <aside class="panel" id="detailsPanel">
+          <div class="panel-header">
+            <h2>Detalhes</h2>
+          </div>
+          <div class="panel-body" id="detailsBody">
+            <div class="empty">Sem seleção.</div>
+          </div>
+        </aside>
+      </section>
     </div>
-
-    <div class="grid2">
-      <div>
-        <label for="limit">Limite (leads)</label>
-        <input type="number" id="limit" value="20" min="1" max="100" />
-      </div>
-      <div>
-        <label for="before">before (ISO, paginação opcional)</label>
-        <input type="text" id="before" placeholder="2026-04-18T12:00:00.000Z" />
-      </div>
-    </div>
-
-    <div class="row">
-      <button type="button" id="btnChatbots">GET /api/v1/chatbots</button>
-      <button type="button" id="btnLeads">GET …/chatbots/:id/leads</button>
-      <button type="button" id="btnMessages">GET …/leads/:id/messages</button>
-      <button type="button" class="secondary" id="btnClear">Limpar saída</button>
-    </div>
-
-    <div id="statusLine"></div>
-    <pre id="out">{}</pre>
 
     <script>
       (function () {
         var baseInput = document.getElementById("baseUrl");
         var keyInput = document.getElementById("apiKey");
-        var out = document.getElementById("out");
+        var chatbotSelect = document.getElementById("chatbotSelect");
         var statusLine = document.getElementById("statusLine");
+        var leadsList = document.getElementById("leadsList");
+        var leadsCount = document.getElementById("leadsCount");
+        var convHeader = document.getElementById("convHeader");
+        var convTitle = document.getElementById("convTitle");
+        var convSub = document.getElementById("convSub");
+        var convAvatar = document.getElementById("convAvatar");
+        var convBody = document.getElementById("convBody");
+        var detailsBody = document.getElementById("detailsBody");
+
+        var STORAGE_KEY = "gc_api_test_state_v1";
+
+        var state = {
+          baseUrl: "",
+          apiKey: "",
+          chatbotId: "",
+          chatbots: [],
+          leads: [],
+          selectedLeadId: "",
+        };
+
+        try {
+          var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+          if (saved.baseUrl) state.baseUrl = saved.baseUrl;
+          if (saved.apiKey) state.apiKey = saved.apiKey;
+          if (saved.chatbotId) state.chatbotId = saved.chatbotId;
+        } catch (e) {
+          /* ignore */
+        }
 
         baseInput.value =
-          window.location.origin === "null" || !window.location.origin
-            ? ""
-            : window.location.origin.replace(/\/$/, "");
+          state.baseUrl ||
+          (window.location.origin && window.location.origin !== "null"
+            ? window.location.origin.replace(/\/$/, "")
+            : "");
+        keyInput.value = state.apiKey;
 
-        function base() {
-          return (baseInput.value || "").trim().replace(/\/$/, "");
-        }
-
-        function headers() {
-          var k = (keyInput.value || "").trim();
-          if (!k) throw new Error("Informe a chave gc_live_…");
-          return {
-            Accept: "application/json",
-            Authorization: "Bearer " + k,
-          };
-        }
-
-        function setStatus(ok, text) {
-          statusLine.className = ok ? "ok" : "err";
-          statusLine.textContent = text;
-        }
-
-        async function req(path) {
-          var b = base();
-          if (!b) throw new Error("Informe a URL base.");
-          var url = b + path;
-          var res = await fetch(url, { headers: headers() });
-          var ct = res.headers.get("content-type") || "";
-          var body;
+        function persist() {
           try {
-            body = ct.includes("application/json") ? await res.json() : await res.text();
+            localStorage.setItem(
+              STORAGE_KEY,
+              JSON.stringify({
+                baseUrl: state.baseUrl,
+                apiKey: state.apiKey,
+                chatbotId: state.chatbotId,
+              }),
+            );
           } catch (e) {
-            body = "(corpo ilegível)";
+            /* ignore */
           }
-          return { res: res, body: body };
         }
 
-        function show(data) {
-          out.textContent =
-            typeof data.body === "string" ? data.body : JSON.stringify(data.body, null, 2);
-          setStatus(
-            data.res.ok,
-            "HTTP " + data.res.status + " " + data.res.statusText + " — " + (data.res.ok ? "ok" : "erro"),
+        function setStatus(cls, text) {
+          statusLine.className = "status" + (cls ? " " + cls : "");
+          statusLine.textContent = text || "";
+        }
+
+        function initials(name, fallback) {
+          var src = (name || fallback || "?").trim();
+          if (!src) return "?";
+          var parts = src.split(/\s+/).slice(0, 2);
+          return parts
+            .map(function (p) {
+              return p.charAt(0).toUpperCase();
+            })
+            .join("");
+        }
+
+        function formatDate(iso) {
+          if (!iso) return "";
+          var d = new Date(iso);
+          if (isNaN(d.getTime())) return iso;
+          return (
+            d.toLocaleDateString("pt-BR") +
+            " " +
+            d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
           );
         }
 
-        document.getElementById("btnChatbots").addEventListener("click", async function () {
-          try {
-            show(await req("/api/v1/chatbots"));
-          } catch (e) {
-            setStatus(false, e.message || String(e));
-            out.textContent = "{}";
+        function formatRelative(iso) {
+          if (!iso) return "";
+          var d = new Date(iso);
+          if (isNaN(d.getTime())) return iso;
+          var diff = (Date.now() - d.getTime()) / 1000;
+          if (diff < 60) return "agora";
+          if (diff < 3600) return Math.floor(diff / 60) + "min";
+          if (diff < 86400) return Math.floor(diff / 3600) + "h";
+          if (diff < 86400 * 7) return Math.floor(diff / 86400) + "d";
+          return d.toLocaleDateString("pt-BR");
+        }
+
+        function escapeHtml(str) {
+          return String(str == null ? "" : str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        async function apiGet(path) {
+          var base = (baseInput.value || "").trim().replace(/\/$/, "");
+          var key = (keyInput.value || "").trim();
+          if (!base) throw new Error("Informe a URL base.");
+          if (!key) throw new Error("Informe a chave gc_live_...");
+          var res = await fetch(base + path, {
+            headers: {
+              Accept: "application/json",
+              Authorization: "Bearer " + key,
+            },
+          });
+          var ct = res.headers.get("content-type") || "";
+          var body = ct.includes("application/json") ? await res.json() : await res.text();
+          if (!res.ok) {
+            var msg =
+              typeof body === "object" && body ? body.error || body.message : String(body).slice(0, 200);
+            var err = new Error(msg || "HTTP " + res.status);
+            err.status = res.status;
+            throw err;
           }
+          return body;
+        }
+
+        async function connect() {
+          state.baseUrl = (baseInput.value || "").trim().replace(/\/$/, "");
+          state.apiKey = (keyInput.value || "").trim();
+          persist();
+
+          if (!state.baseUrl || !state.apiKey) {
+            setStatus("err", "Preencha URL base e chave.");
+            return;
+          }
+
+          setStatus("", "Buscando chatbots...");
+          try {
+            var data = await apiGet("/api/v1/chatbots");
+            state.chatbots = data.items || [];
+            renderChatbotsSelect();
+            if (state.chatbots.length === 0) {
+              setStatus("err", "Nenhum chatbot encontrado para essa chave.");
+              return;
+            }
+            var target =
+              state.chatbots.find(function (b) {
+                return b.id === state.chatbotId;
+              }) || state.chatbots[0];
+            state.chatbotId = target.id;
+            chatbotSelect.value = target.id;
+            persist();
+            setStatus("ok", "Conectado. " + state.chatbots.length + " chatbot(s).");
+            await loadLeads();
+          } catch (e) {
+            setStatus("err", "Erro: " + (e.message || e));
+          }
+        }
+
+        function renderChatbotsSelect() {
+          chatbotSelect.innerHTML =
+            '<option value="">— selecione um chatbot —</option>' +
+            state.chatbots
+              .map(function (b) {
+                return (
+                  '<option value="' +
+                  escapeHtml(b.id) +
+                  '">' +
+                  escapeHtml(b.name) +
+                  (b.configured ? "" : " (sem config)") +
+                  "</option>"
+                );
+              })
+              .join("");
+        }
+
+        async function loadLeads() {
+          if (!state.chatbotId) {
+            leadsList.innerHTML =
+              '<div class="empty">Selecione um chatbot no topo.</div>';
+            leadsCount.textContent = "0";
+            return;
+          }
+          setStatus("", "Carregando leads...");
+          leadsList.innerHTML = '<div class="empty">Carregando...</div>';
+          try {
+            var data = await apiGet(
+              "/api/v1/chatbots/" + encodeURIComponent(state.chatbotId) + "/leads?limit=100",
+            );
+            state.leads = data.items || [];
+            renderLeads();
+            setStatus("ok", state.leads.length + " lead(s) carregado(s).");
+            if (state.leads.length > 0) {
+              var prev = state.leads.find(function (l) {
+                return l.id === state.selectedLeadId;
+              });
+              selectLead((prev || state.leads[0]).id);
+            } else {
+              clearConversation();
+            }
+          } catch (e) {
+            leadsList.innerHTML =
+              '<div class="empty">Erro: ' + escapeHtml(e.message || String(e)) + "</div>";
+            setStatus("err", "Erro ao carregar leads.");
+          }
+        }
+
+        function renderLeads() {
+          leadsCount.textContent = String(state.leads.length);
+          if (!state.leads.length) {
+            leadsList.innerHTML =
+              '<div class="empty">Nenhum lead ainda nesse chatbot.</div>';
+            return;
+          }
+          leadsList.innerHTML = state.leads
+            .map(function (l) {
+              var display = l.name || l.phone || "(sem nome)";
+              var src = (l.source || "whatsapp").toLowerCase();
+              var isActive = l.id === state.selectedLeadId;
+              return (
+                '<div class="lead-item' +
+                (isActive ? " active" : "") +
+                '" data-lead-id="' +
+                escapeHtml(l.id) +
+                '">' +
+                '<div class="avatar">' +
+                escapeHtml(initials(l.name, l.phone)) +
+                "</div>" +
+                "<div>" +
+                '<div class="lead-name">' +
+                escapeHtml(display) +
+                "</div>" +
+                '<div class="lead-sub">' +
+                escapeHtml(l.phone || "") +
+                ' · <span class="badge ' +
+                escapeHtml(src) +
+                '">' +
+                escapeHtml(src) +
+                "</span></div>" +
+                "</div>" +
+                '<div class="lead-meta">' +
+                escapeHtml(formatRelative(l.last_message_at)) +
+                "</div>" +
+                "</div>"
+              );
+            })
+            .join("");
+        }
+
+        leadsList.addEventListener("click", function (e) {
+          var item = e.target.closest("[data-lead-id]");
+          if (!item) return;
+          selectLead(item.getAttribute("data-lead-id"));
         });
 
-        document.getElementById("btnLeads").addEventListener("click", async function () {
+        async function selectLead(leadId) {
+          state.selectedLeadId = leadId;
+          leadsList.querySelectorAll(".lead-item").forEach(function (el) {
+            el.classList.toggle("active", el.getAttribute("data-lead-id") === leadId);
+          });
+
+          var lead = state.leads.find(function (l) {
+            return l.id === leadId;
+          });
+          if (!lead) return;
+
+          convHeader.style.display = "flex";
+          convAvatar.textContent = initials(lead.name, lead.phone);
+          convTitle.textContent = lead.name || lead.phone || "(sem nome)";
+          convSub.textContent =
+            (lead.phone || "") +
+            " · origem " +
+            (lead.source || "whatsapp") +
+            " · criado " +
+            formatDate(lead.created_at);
+
+          convBody.innerHTML = '<div class="empty">Carregando conversa...</div>';
+          renderDetails(lead, null);
+
           try {
-            var id = (document.getElementById("chatbotId").value || "").trim();
-            if (!id) throw new Error("Preencha o ID do chatbot.");
-            var lim = parseInt(document.getElementById("limit").value, 10) || 20;
-            lim = Math.min(100, Math.max(1, lim));
-            var bef = (document.getElementById("before").value || "").trim();
-            var q = "?limit=" + encodeURIComponent(lim);
-            if (bef) q += "&before=" + encodeURIComponent(bef);
-            show(await req("/api/v1/chatbots/" + encodeURIComponent(id) + "/leads" + q));
+            var data = await apiGet(
+              "/api/v1/leads/" + encodeURIComponent(lead.id) + "/messages",
+            );
+            renderConversation(data.lead || lead, data.items || []);
+            renderDetails(data.lead || lead, data.items || []);
           } catch (e) {
-            setStatus(false, e.message || String(e));
-            out.textContent = "{}";
+            convBody.innerHTML =
+              '<div class="empty">Erro ao carregar mensagens: ' +
+              escapeHtml(e.message || String(e)) +
+              "</div>";
           }
+        }
+
+        function renderConversation(lead, items) {
+          if (!items.length) {
+            convBody.innerHTML = '<div class="empty">Sem mensagens ainda.</div>';
+            return;
+          }
+          convBody.innerHTML = items
+            .map(function (m) {
+              return (
+                '<div class="bubble ' +
+                (m.role === "assistant" ? "assistant" : "user") +
+                '">' +
+                escapeHtml(m.content) +
+                '<span class="time">' +
+                escapeHtml(formatDate(m.created_at)) +
+                "</span>" +
+                "</div>"
+              );
+            })
+            .join("");
+          convBody.scrollTop = convBody.scrollHeight;
+        }
+
+        function renderDetails(lead, items) {
+          if (!lead) {
+            detailsBody.innerHTML = '<div class="empty">Sem seleção.</div>';
+            return;
+          }
+          var total = items ? items.length : 0;
+          var userMsgs = items ? items.filter(function (m) { return m.role === "user"; }).length : 0;
+          var aiMsgs = items ? items.filter(function (m) { return m.role === "assistant"; }).length : 0;
+
+          detailsBody.innerHTML =
+            '<div class="info-section">' +
+            "<h3>Lead</h3>" +
+            '<div class="kv">' +
+            "<div>Nome</div><div>" +
+            escapeHtml(lead.name || "(sem nome)") +
+            "</div>" +
+            "<div>Telefone</div><div>" +
+            escapeHtml(lead.phone || "") +
+            "</div>" +
+            "<div>Origem</div><div>" +
+            escapeHtml(lead.source || "whatsapp") +
+            "</div>" +
+            "<div>Criado</div><div>" +
+            escapeHtml(formatDate(lead.created_at)) +
+            "</div>" +
+            "<div>Última msg</div><div>" +
+            escapeHtml(formatDate(lead.last_message_at)) +
+            "</div>" +
+            "<div>ID</div><div>" +
+            escapeHtml(lead.id) +
+            "</div>" +
+            "</div>" +
+            "</div>" +
+            (items
+              ? '<div class="info-section">' +
+                "<h3>Mensagens</h3>" +
+                '<div class="kv">' +
+                "<div>Total</div><div>" +
+                total +
+                "</div>" +
+                "<div>Usuário</div><div>" +
+                userMsgs +
+                "</div>" +
+                "<div>Assistente</div><div>" +
+                aiMsgs +
+                "</div>" +
+                "</div>" +
+                "</div>"
+              : "") +
+            (items
+              ? '<details class="raw"><summary>Ver JSON bruto</summary><pre>' +
+                escapeHtml(JSON.stringify({ lead: lead, items: items }, null, 2)) +
+                "</pre></details>"
+              : "");
+        }
+
+        function clearConversation() {
+          convHeader.style.display = "none";
+          convBody.innerHTML = '<div class="empty">Escolha um lead na lista.</div>';
+          detailsBody.innerHTML = '<div class="empty">Sem seleção.</div>';
+        }
+
+        document.getElementById("connectBtn").addEventListener("click", connect);
+        document.getElementById("refreshBtn").addEventListener("click", function () {
+          if (!state.chatbotId) return connect();
+          loadLeads();
+        });
+        chatbotSelect.addEventListener("change", function () {
+          state.chatbotId = chatbotSelect.value;
+          state.selectedLeadId = "";
+          persist();
+          loadLeads();
         });
 
-        document.getElementById("btnMessages").addEventListener("click", async function () {
-          try {
-            var id = (document.getElementById("leadId").value || "").trim();
-            if (!id) throw new Error("Preencha o ID do lead.");
-            show(await req("/api/v1/leads/" + encodeURIComponent(id) + "/messages"));
-          } catch (e) {
-            setStatus(false, e.message || String(e));
-            out.textContent = "{}";
-          }
+        keyInput.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") connect();
+        });
+        baseInput.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") connect();
         });
 
-        document.getElementById("btnClear").addEventListener("click", function () {
-          out.textContent = "{}";
-          statusLine.textContent = "";
-          statusLine.className = "";
-        });
+        if (state.apiKey && state.baseUrl) {
+          connect();
+        }
       })();
     </script>
   </body>
