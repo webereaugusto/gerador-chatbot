@@ -468,7 +468,13 @@ async function upsertLead(chatbotId, phone, pushName, source = "whatsapp") {
     .single();
 
   // Fallback: banco ainda sem a coluna `source` (migracao pendente)
-  if (error && error.code === "42703") {
+  const msgMissingSource =
+    error &&
+    (error.code === "42703" ||
+      error.code === "PGRST204" ||
+      /'source'|"source"|column .*source/i.test(error.message || ""));
+
+  if (msgMissingSource) {
     console.warn(
       "[LEADS] coluna `source` nao existe ainda. Rode o ALTER TABLE no Supabase. Continuando sem source.",
     );
