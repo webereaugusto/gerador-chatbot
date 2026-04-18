@@ -262,26 +262,9 @@
         <input id="botOpenAiKey" type="password" placeholder="sk-..." />
         <p class="hint" id="botOpenAiKeyHint"></p>
 
-        <div class="section-label">Evolution API</div>
-        <div class="form-grid">
-          <div>
-            <label for="botEvolutionBaseUrl">URL base</label>
-            <input
-              id="botEvolutionBaseUrl"
-              type="text"
-              placeholder="https://seu-dominio-da-evolution"
-            />
-          </div>
-          <div>
-            <label for="botEvolutionInstance">Instância</label>
-            <input id="botEvolutionInstance" type="text" placeholder="minha-instancia" />
-          </div>
-          <div class="form-grid-full">
-            <label for="botEvolutionApiKey">API Key</label>
-            <input id="botEvolutionApiKey" type="password" />
-            <p class="hint" id="botEvolutionApiKeyHint"></p>
-          </div>
-        </div>
+        <p class="hint" style="margin-top: 4px;">
+          A conexão com o WhatsApp é feita pelo botão <strong>Conectar WhatsApp</strong> no card do chatbot (QR code in-app).
+        </p>
 
         <div class="section-label">Filtro de teste (WhatsApp)</div>
         <label class="checkbox-row" for="botWhatsappTestFilterEnabled">
@@ -406,6 +389,37 @@
         <div class="chat-reply">
           <div class="chat-reply-label">Resposta</div>
           <div id="testResponse" class="chat-reply-text muted">Nenhum teste ainda.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal QR WhatsApp -->
+    <div class="modal-backdrop" id="qrModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Conectar WhatsApp — <span id="qrBotName"></span></h2>
+          <button class="icon-btn" id="closeQrModalBtn" aria-label="Fechar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <p class="muted" style="margin-bottom: 10px;">
+          No celular: <strong>WhatsApp</strong> → <strong>Aparelhos conectados</strong> →
+          <strong>Conectar um aparelho</strong> e aponte para o QR abaixo.
+        </p>
+
+        <div id="qrContainer" style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:14px 0;">
+          <div id="qrLoading" class="muted">Gerando QR code...</div>
+          <img id="qrImage" alt="QR code" style="display:none;width:260px;height:260px;border-radius:12px;background:#fff;padding:10px;" />
+          <div id="qrStatus" class="status-text"></div>
+        </div>
+
+        <div class="actions-row">
+          <button class="btn-primary" id="qrRefreshBtn" type="button">Gerar novo QR</button>
+          <button class="btn-ghost" id="qrCancelBtn" type="button">Fechar</button>
         </div>
       </div>
     </div>

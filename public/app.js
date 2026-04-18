@@ -265,9 +265,6 @@ function openBotModal(bot) {
   document.getElementById("botId").value = bot?.id || "";
   document.getElementById("botName").value = bot?.name || "";
   document.getElementById("botOpenAiKey").value = "";
-  document.getElementById("botEvolutionBaseUrl").value = bot?.evolutionBaseUrl || "";
-  document.getElementById("botEvolutionInstance").value = bot?.evolutionInstance || "";
-  document.getElementById("botEvolutionApiKey").value = "";
   document.getElementById("botSystemPrompt").value = bot?.systemPrompt || "";
   document.getElementById("botKnowledgeBase").value = bot?.knowledgeBase || "";
   document.getElementById("botWhatsappTestFilterEnabled").checked = Boolean(
@@ -277,9 +274,6 @@ function openBotModal(bot) {
     bot?.whatsappTestPhone || "";
 
   document.getElementById("botOpenAiKeyHint").innerText = bot?.hasOpenAiKey
-    ? "Chave salva. Preencha apenas para substituir."
-    : "";
-  document.getElementById("botEvolutionApiKeyHint").innerText = bot?.hasEvolutionKey
     ? "Chave salva. Preencha apenas para substituir."
     : "";
 
@@ -355,6 +349,24 @@ function renderBots() {
         ? bot.knowledgeBase.slice(0, 100) + (bot.knowledgeBase.length > 100 ? "..." : "")
         : "Sem base de conhecimento.";
 
+      const status = bot.whatsappConnectionStatus || "disconnected";
+      const statusLabel =
+        status === "open"
+          ? "WhatsApp conectado"
+          : status === "qr"
+            ? "Aguardando QR"
+            : status === "connecting"
+              ? "Conectando..."
+              : "WhatsApp desconectado";
+      const statusBadgeClass = status === "open" ? "ok" : "warn";
+
+      const connectButton =
+        status === "open"
+          ? `<button class="btn-ghost danger" data-action="disconnect" data-id="${bot.id}">Desconectar WhatsApp</button>`
+          : `<button class="btn-ghost" data-action="connect" data-id="${bot.id}">${
+              status === "qr" || status === "connecting" ? "Ver QR novamente" : "Conectar WhatsApp"
+            }</button>`;
+
       return `
         <div class="bot-card">
           <div class="bot-card-header">
@@ -365,42 +377,26 @@ function renderBots() {
                   ? `<span class="badge warn" title="Só responde ao número ${escapeHtml(bot.whatsappTestPhone || "")}">filtro teste</span>`
                   : ""
               }
-              <span class="badge ${bot.configured ? "ok" : "warn"}">
-                ${bot.configured ? "configurado" : "incompleto"}
-              </span>
+              <span class="badge ${statusBadgeClass}">${statusLabel}</span>
             </div>
           </div>
 
           <div class="bot-card-meta">
             <div class="meta-item">
-              <span class="meta-label">Instância</span>
-              <span class="meta-value">${escapeHtml(bot.evolutionInstance || "—")}</span>
-            </div>
-            <div class="meta-item">
               <span class="meta-label">OpenAI</span>
               <span class="meta-value">${bot.hasOpenAiKey ? "chave salva" : "pendente"}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Última conexão</span>
+              <span class="meta-value">${bot.whatsappConnectedAt ? new Date(bot.whatsappConnectedAt).toLocaleString("pt-BR") : "—"}</span>
             </div>
           </div>
 
           <div class="bot-card-field"><strong>Prompt:</strong> ${escapeHtml(prompt)}</div>
           <div class="bot-card-field"><strong>Base:</strong> ${escapeHtml(knowledge)}</div>
 
-          <div class="webhook-row">
-            <span class="webhook-label">Webhook</span>
-            <code class="webhook-url" title="${escapeHtml(bot.webhookUrl)}">${escapeHtml(
-              bot.webhookUrl,
-            )}</code>
-            <button class="icon-btn" data-action="copy" data-url="${escapeHtml(
-              bot.webhookUrl,
-            )}" title="Copiar">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            </button>
-          </div>
-
           <div class="bot-card-footer">
+            ${connectButton}
             <button class="btn-ghost" data-action="test" data-id="${bot.id}">Testar</button>
             <button class="btn-ghost" data-action="widget" data-id="${bot.id}">Widget</button>
             <button class="btn-ghost" data-action="leads" data-id="${bot.id}">Leads</button>
@@ -442,6 +438,16 @@ document.getElementById("botList").addEventListener("click", async (e) => {
     document.querySelector('.nav-item[data-view="leads"]').click();
     document.getElementById("leadsBotSelect").value = bot.id;
     await loadLeads(bot.id);
+  } else if (action === "connect") {
+    await openQrModal(bot);
+  } else if (action === "disconnect") {
+    if (!confirm(`Desconectar WhatsApp de "${bot.name}"?`)) return;
+    const res = await authFetch(`/api/chatbots/${id}/disconnect`, { method: "POST" });
+    if (res.ok) await loadChatbots();
+    else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Falha ao desconectar.");
+    }
   }
 });
 
@@ -462,9 +468,6 @@ async function saveBot() {
   const payload = {
     name: document.getElementById("botName").value,
     openaiApiKey: document.getElementById("botOpenAiKey").value,
-    evolutionBaseUrl: document.getElementById("botEvolutionBaseUrl").value,
-    evolutionApiKey: document.getElementById("botEvolutionApiKey").value,
-    evolutionInstance: document.getElementById("botEvolutionInstance").value,
     systemPrompt: document.getElementById("botSystemPrompt").value,
     knowledgeBase: document.getElementById("botKnowledgeBase").value,
     whatsappTestFilterEnabled: document.getElementById(
@@ -847,6 +850,119 @@ document.getElementById("apiKeysList").addEventListener("click", async (e) => {
     return;
   }
   loadApiKeysView();
+});
+
+// ---------------------------------------------------------------
+// QR modal (conexão WhatsApp gerenciada pelo Evolution)
+// ---------------------------------------------------------------
+const qrModal = document.getElementById("qrModal");
+let qrCurrentBotId = null;
+let qrPollTimer = null;
+let qrPollStart = 0;
+const QR_POLL_TIMEOUT_MS = 120000;
+
+function setQrImage(base64) {
+  const img = document.getElementById("qrImage");
+  const loading = document.getElementById("qrLoading");
+  if (base64) {
+    const src = base64.startsWith("data:") ? base64 : `data:image/png;base64,${base64}`;
+    img.src = src;
+    img.style.display = "block";
+    loading.style.display = "none";
+  } else {
+    img.style.display = "none";
+    loading.style.display = "block";
+  }
+}
+
+function setQrStatus(cls, text) {
+  const el = document.getElementById("qrStatus");
+  el.className = "status-text" + (cls ? " " + cls : "");
+  el.innerText = text || "";
+}
+
+async function openQrModal(bot) {
+  qrCurrentBotId = bot.id;
+  document.getElementById("qrBotName").innerText = bot.name;
+  setQrImage(null);
+  setQrStatus("", "Gerando QR code...");
+  qrModal.classList.add("open");
+  await requestQr(bot.id);
+}
+
+async function requestQr(botId) {
+  setQrImage(null);
+  setQrStatus("", "Solicitando instância ao Evolution...");
+  const res = await authFetch(`/api/chatbots/${botId}/connect`, { method: "POST" });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    setQrStatus("error", data.error || "Falha ao iniciar conexão.");
+    return;
+  }
+  if (data.status === "open") {
+    setQrStatus("ok", "WhatsApp já está conectado.");
+    setTimeout(closeQrModal, 1200);
+    await loadChatbots();
+    return;
+  }
+  if (data.qrcode) {
+    setQrImage(data.qrcode);
+    setQrStatus("", "Escaneie o QR com o WhatsApp no seu celular.");
+  } else {
+    setQrStatus("", "Aguardando QR...");
+  }
+  startQrPolling(botId);
+}
+
+function startQrPolling(botId) {
+  stopQrPolling();
+  qrPollStart = Date.now();
+  const tick = async () => {
+    if (qrCurrentBotId !== botId) return;
+    if (Date.now() - qrPollStart > QR_POLL_TIMEOUT_MS) {
+      setQrStatus("error", "QR expirou. Clique em 'Gerar novo QR'.");
+      return;
+    }
+    try {
+      const res = await authFetch(`/api/chatbots/${botId}/connection-state`);
+      const data = await res.json().catch(() => ({}));
+      if (data.status === "open") {
+        setQrStatus("ok", "Conectado ✓");
+        stopQrPolling();
+        await loadChatbots();
+        setTimeout(closeQrModal, 1200);
+        return;
+      }
+      if (data.status === "connecting") setQrStatus("", "Pareando...");
+      if (data.status === "qr") setQrStatus("", "Escaneie o QR no celular.");
+      if (data.status === "disconnected") setQrStatus("", "Aguardando leitura do QR...");
+    } catch (_) {}
+    qrPollTimer = setTimeout(tick, 3000);
+  };
+  qrPollTimer = setTimeout(tick, 3000);
+}
+
+function stopQrPolling() {
+  if (qrPollTimer) {
+    clearTimeout(qrPollTimer);
+    qrPollTimer = null;
+  }
+}
+
+function closeQrModal() {
+  qrModal.classList.remove("open");
+  qrCurrentBotId = null;
+  stopQrPolling();
+}
+
+document.getElementById("closeQrModalBtn").addEventListener("click", closeQrModal);
+document.getElementById("qrCancelBtn").addEventListener("click", closeQrModal);
+qrModal.addEventListener("click", (e) => {
+  if (e.target === qrModal) closeQrModal();
+});
+document.getElementById("qrRefreshBtn").addEventListener("click", async () => {
+  if (!qrCurrentBotId) return;
+  await requestQr(qrCurrentBotId);
 });
 
 bootstrap();

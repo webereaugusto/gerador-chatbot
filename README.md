@@ -28,13 +28,17 @@ E ativa RLS para isolar dados por usuario.
 
 **Projetos ja existentes:** rode no SQL Editor apenas o bloco novo da tabela `api_keys`
 e as politicas correspondentes (ou o arquivo inteiro — os `if not exists` sao idempotentes).
-Se a tabela `chatbots` ja existe sem as colunas do filtro de teste, rode tambem:
+Se a tabela `chatbots` ja existe sem as colunas novas, rode tambem:
 
 ```sql
 alter table public.chatbots
   add column if not exists whatsapp_test_filter_enabled boolean not null default false;
 alter table public.chatbots
   add column if not exists whatsapp_test_phone text not null default '';
+alter table public.chatbots
+  add column if not exists whatsapp_connection_status text not null default 'disconnected';
+alter table public.chatbots
+  add column if not exists whatsapp_connected_at timestamptz;
 ```
 
 ## Rodando
@@ -103,18 +107,27 @@ No painel do projeto: **Settings → Environment Variables**, adicione para
 - `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE`
 - `API_KEY_PEPPER` — string longa e aleatoria (obrigatoria para **gerar chaves** e usar a **API externa v1**)
+- `EVOLUTION_BASE_URL` — URL do Evolution no seu VPS (ex.: `https://evolution.seudominio.com`)
+- `EVOLUTION_GLOBAL_API_KEY` — valor de `AUTHENTICATION_API_KEY` no `.env` do Evolution (chave **global** da instalacao; **nao** e a chave da instancia)
 
-Sem isso, `/api/config` retorna vazio e o app nao autentica. Sem `API_KEY_PEPPER`, as rotas `/api/v1/*` e `/api/api-keys` retornam erro de configuracao.
+Sem Supabase, `/api/config` retorna vazio e o app nao autentica. Sem `API_KEY_PEPPER`, as rotas `/api/v1/*` e `/api/api-keys` retornam erro de configuracao. Sem `EVOLUTION_BASE_URL` + `EVOLUTION_GLOBAL_API_KEY`, o botao **Conectar WhatsApp** retorna 503.
 
-### Evolution API (webhook publico)
+### Conexao WhatsApp (QR in-app)
 
-Se o projeto estiver com **Deployment Protection** (login Vercel na URL), a
-Evolution **nao** conseguira chamar o webhook. Em **Project → Settings →
-Deployment Protection**, desative a protecao para **Production** (ou use um
-bypass token documentado na Vercel) para que `POST /webhook/evolution/:botId`
-funcione.
+O usuario **nao configura Evolution** em lugar nenhum do painel. O fluxo agora e:
 
-O dominio de producao aparece no dashboard apos o deploy (ex. `*.vercel.app`).
+1. Usuario cria o chatbot e salva apenas a chave da OpenAI, prompt e base de conhecimento.
+2. No card do chatbot, clica em **Conectar WhatsApp**.
+3. O backend cria a instancia no Evolution (nome gerado automaticamente), pega o QR code e exibe no painel.
+4. Usuario escaneia o QR com o WhatsApp do celular.
+5. O backend faz polling e marca a conexao como `open` quando pareada.
+6. O webhook e configurado automaticamente na Evolution.
+
+Importante sobre a Evolution:
+
+- Precisa rodar num **host persistente** (VPS, Railway, Render, Coolify). Vercel nao serve como host de Evolution (serverless).
+- A URL precisa ser publica em HTTPS para o webhook do seu chatbot funcionar.
+- Se o projeto Vercel estiver com **Deployment Protection**, o Evolution nao consegue chamar o webhook — desative em **Settings → Deployment Protection**.
 
 ### Filtro de teste (whitelist de numero)
 
@@ -138,6 +151,9 @@ No cadastro do chatbot ha a seção **Filtro de teste (WhatsApp)**:
 | PUT    | `/api/chatbots/:id`               | Atualiza chatbot                      |
 | DELETE | `/api/chatbots/:id`               | Exclui chatbot                        |
 | POST   | `/api/chatbots/:id/test`          | Testa chatbot com pergunta de IA      |
+| POST   | `/api/chatbots/:id/connect`       | Cria instancia Evolution e retorna QR |
+| GET    | `/api/chatbots/:id/connection-state` | Estado da conexao (`open/qr/connecting/disconnected`) |
+| POST   | `/api/chatbots/:id/disconnect`    | Logout da instancia Evolution         |
 | GET    | `/api/chatbots/:id/leads`         | Leads do chatbot                      |
 | GET    | `/api/leads/:id/messages`         | Mensagens de um lead                  |
 | GET    | `/api/api-keys`                   | Lista chaves de API (JWT)             |

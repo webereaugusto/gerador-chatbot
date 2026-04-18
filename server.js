@@ -13,6 +13,14 @@ const supabaseUrl = (process.env.SUPABASE_URL || "").trim();
 const supabaseAnonKey = (process.env.SUPABASE_ANON_KEY || "").trim();
 const supabaseServiceRole = (process.env.SUPABASE_SERVICE_ROLE || "").trim();
 const apiKeyPepper = (process.env.API_KEY_PEPPER || "").trim();
+const evolutionBaseUrl = (process.env.EVOLUTION_BASE_URL || "")
+  .trim()
+  .replace(/\/$/, "");
+const evolutionGlobalKey = (process.env.EVOLUTION_GLOBAL_API_KEY || "").trim();
+
+function hasEvolutionConfig() {
+  return Boolean(evolutionBaseUrl && evolutionGlobalKey);
+}
 
 const missingSupabase =
   !supabaseUrl || !supabaseAnonKey || !supabaseServiceRole;
@@ -115,9 +123,8 @@ function buildSystemPrompt(bot) {
 function isBotConfigured(bot) {
   return Boolean(
     bot?.openai_api_key &&
-      bot?.evolution_base_url &&
-      bot?.evolution_api_key &&
-      bot?.evolution_instance,
+      bot?.evolution_instance &&
+      bot?.whatsapp_connection_status === "open",
   );
 }
 
@@ -131,12 +138,11 @@ function serializeBot(req, bot) {
     name: bot.name,
     systemPrompt: bot.system_prompt,
     knowledgeBase: bot.knowledge_base,
-    evolutionBaseUrl: bot.evolution_base_url,
-    evolutionInstance: bot.evolution_instance,
     hasOpenAiKey: Boolean(bot.openai_api_key),
-    hasEvolutionKey: Boolean(bot.evolution_api_key),
     whatsappTestFilterEnabled: Boolean(bot.whatsapp_test_filter_enabled),
     whatsappTestPhone: bot.whatsapp_test_phone || "",
+    whatsappConnectionStatus: bot.whatsapp_connection_status || "disconnected",
+    whatsappConnectedAt: bot.whatsapp_connected_at || null,
     configured: isBotConfigured(bot),
     webhookUrl: buildBotWebhookUrl(req, bot.id),
     createdAt: bot.created_at,
@@ -170,8 +176,19 @@ async function generateAiReply(bot, userMessage, history = []) {
 }
 
 async function sendEvolutionMessage(bot, number, text) {
-  const baseUrl = bot.evolution_base_url.replace(/\/$/, "");
-  const url = `${baseUrl}/message/sendText/${bot.evolution_instance}`;
+  if (!evolutionBaseUrl) {
+    const wrapped = new Error("[EVOLUTION] EVOLUTION_BASE_URL nao configurado no servidor.");
+    wrapped.source = "evolution";
+    throw wrapped;
+  }
+  if (!bot.evolution_instance) {
+    const wrapped = new Error("[EVOLUTION] Chatbot sem instancia; conecte o WhatsApp antes.");
+    wrapped.source = "evolution";
+    throw wrapped;
+  }
+
+  const url = `${evolutionBaseUrl}/message/sendText/${bot.evolution_instance}`;
+  const apiKey = bot.evolution_api_key || evolutionGlobalKey;
 
   try {
     await axios.post(
@@ -179,7 +196,7 @@ async function sendEvolutionMessage(bot, number, text) {
       { number, text },
       {
         headers: {
-          apikey: bot.evolution_api_key,
+          apikey: apiKey,
           "Content-Type": "application/json",
         },
         timeout: 30000,
@@ -196,6 +213,136 @@ async function sendEvolutionMessage(bot, number, text) {
     wrapped.httpBody = body;
     throw wrapped;
   }
+}
+
+// ---------------------------------------------------------------
+// Evolution: orquestracao de instancia (gerenciada pelo backend)
+// ---------------------------------------------------------------
+function buildInstanceName(botId) {
+  return "bot_" + String(botId || "").replace(/-/g, "").slice(0, 20);
+}
+
+function normalizeEvolutionState(raw) {
+  const s = String(
+    raw?.instance?.state ||
+      raw?.state ||
+      raw?.status ||
+      raw?.instance?.status ||
+      "",
+  ).toLowerCase();
+  if (s === "open" || s === "connected") return "open";
+  if (s === "connecting" || s === "syncing") return "connecting";
+  if (s === "qr" || s === "qrcode" || s === "pairing") return "qr";
+  if (s === "close" || s === "closed" || s === "disconnected") return "disconnected";
+  return s || "disconnected";
+}
+
+function extractQrBase64(raw) {
+  return (
+    raw?.qrcode?.base64 ||
+    raw?.qrcode ||
+    raw?.base64 ||
+    raw?.qr ||
+    raw?.instance?.qrcode?.base64 ||
+    raw?.instance?.qrcode ||
+    null
+  );
+}
+
+async function evoRequest(method, path, { body, instanceKey } = {}) {
+  if (!hasEvolutionConfig()) {
+    const e = new Error("[EVO] EVOLUTION_BASE_URL ou EVOLUTION_GLOBAL_API_KEY nao configurados.");
+    e.source = "evolution";
+    throw e;
+  }
+  const url = `${evolutionBaseUrl}${path}`;
+  try {
+    const res = await axios({
+      method,
+      url,
+      data: body,
+      headers: {
+        apikey: instanceKey || evolutionGlobalKey,
+        "Content-Type": "application/json",
+      },
+      timeout: 30000,
+      validateStatus: () => true,
+    });
+    if (res.status >= 400) {
+      const body = typeof res.data === "string" ? res.data : JSON.stringify(res.data || {});
+      const e = new Error(
+        `[EVO] ${method} ${path} falhou | status=${res.status} | body=${body.slice(0, 500)}`,
+      );
+      e.source = "evolution";
+      e.httpStatus = res.status;
+      e.httpBody = res.data;
+      throw e;
+    }
+    return res.data;
+  } catch (err) {
+    if (err.source === "evolution") throw err;
+    const e = new Error(`[EVO] ${method} ${url} falhou | err=${err.message}`);
+    e.source = "evolution";
+    throw e;
+  }
+}
+
+async function evoCreateInstance(instanceName, webhookUrl) {
+  return evoRequest("POST", "/instance/create", {
+    body: {
+      instanceName,
+      integration: "WHATSAPP-BAILEYS",
+      qrcode: true,
+      webhook: {
+        enabled: true,
+        url: webhookUrl,
+        events: ["MESSAGES_UPSERT"],
+        webhook_by_events: false,
+        webhook_base64: false,
+      },
+    },
+  });
+}
+
+async function evoGetQr(instanceName) {
+  return evoRequest("GET", `/instance/connect/${encodeURIComponent(instanceName)}`);
+}
+
+async function evoGetState(instanceName) {
+  return evoRequest(
+    "GET",
+    `/instance/connectionState/${encodeURIComponent(instanceName)}`,
+  );
+}
+
+async function evoSetWebhook(instanceName, webhookUrl) {
+  return evoRequest("POST", `/webhook/set/${encodeURIComponent(instanceName)}`, {
+    body: {
+      webhook: {
+        enabled: true,
+        url: webhookUrl,
+        events: ["MESSAGES_UPSERT"],
+        webhook_by_events: false,
+        webhook_base64: false,
+      },
+    },
+  });
+}
+
+async function evoLogout(instanceName) {
+  return evoRequest("DELETE", `/instance/logout/${encodeURIComponent(instanceName)}`);
+}
+
+async function evoDeleteInstance(instanceName) {
+  return evoRequest("DELETE", `/instance/delete/${encodeURIComponent(instanceName)}`);
+}
+
+async function updateBotConnectionStatus(botId, status, extra = {}) {
+  const update = { whatsapp_connection_status: status, ...extra };
+  if (status === "open" && !extra.whatsapp_connected_at) {
+    update.whatsapp_connected_at = new Date().toISOString();
+  }
+  await supabaseAdmin.from("chatbots").update(update).eq("id", botId);
 }
 
 // ---------------------------------------------------------------
@@ -348,9 +495,6 @@ function readBotFields(body) {
   return {
     name: String(body?.name || "").trim(),
     openai_api_key: String(body?.openaiApiKey || "").trim(),
-    evolution_base_url: String(body?.evolutionBaseUrl || "").trim(),
-    evolution_api_key: String(body?.evolutionApiKey || "").trim(),
-    evolution_instance: String(body?.evolutionInstance || "").trim(),
     system_prompt: String(body?.systemPrompt || "").trim(),
     knowledge_base: String(body?.knowledgeBase || "").trim(),
     whatsapp_test_filter_enabled: Boolean(body?.whatsappTestFilterEnabled),
@@ -394,9 +538,6 @@ app.post("/api/chatbots", requireUser, async (req, res) => {
       user_id: req.user.id,
       name: fields.name,
       openai_api_key: fields.openai_api_key,
-      evolution_base_url: fields.evolution_base_url,
-      evolution_api_key: fields.evolution_api_key,
-      evolution_instance: fields.evolution_instance,
       system_prompt: fields.system_prompt || fallbackPrompt,
       knowledge_base: fields.knowledge_base,
       whatsapp_test_filter_enabled: fields.whatsapp_test_filter_enabled,
@@ -424,8 +565,6 @@ app.put("/api/chatbots/:id", requireUser, async (req, res) => {
 
   const update = {
     name: fields.name,
-    evolution_base_url: fields.evolution_base_url,
-    evolution_instance: fields.evolution_instance,
     system_prompt: fields.system_prompt || fallbackPrompt,
     knowledge_base: fields.knowledge_base,
     whatsapp_test_filter_enabled: fields.whatsapp_test_filter_enabled,
@@ -433,7 +572,6 @@ app.put("/api/chatbots/:id", requireUser, async (req, res) => {
   };
 
   if (fields.openai_api_key) update.openai_api_key = fields.openai_api_key;
-  if (fields.evolution_api_key) update.evolution_api_key = fields.evolution_api_key;
 
   const { data, error } = await supabaseAdmin
     .from("chatbots")
@@ -459,6 +597,144 @@ app.delete("/api/chatbots/:id", requireUser, async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------
+// Evolution: conexao gerenciada (QR code in-app, webhook auto)
+// ---------------------------------------------------------------
+app.post("/api/chatbots/:id/connect", requireUser, async (req, res) => {
+  try {
+    if (!hasEvolutionConfig()) {
+      return res.status(503).json({
+        error:
+          "Servidor sem EVOLUTION_BASE_URL ou EVOLUTION_GLOBAL_API_KEY configurados.",
+      });
+    }
+    const bot = await findUserBot(req.user.id, req.params.id);
+    if (!bot) return res.status(404).json({ error: "Chatbot nao encontrado." });
+
+    const instanceName = bot.evolution_instance || buildInstanceName(bot.id);
+    const webhookUrl = buildBotWebhookUrl(req, bot.id);
+
+    // Ja existe instancia: checar estado antes de recriar
+    if (bot.evolution_instance) {
+      try {
+        const state = await evoGetState(instanceName);
+        const status = normalizeEvolutionState(state);
+        if (status === "open") {
+          await updateBotConnectionStatus(bot.id, "open");
+          return res.json({ status: "open" });
+        }
+        const qrData = await evoGetQr(instanceName);
+        const qrcode = extractQrBase64(qrData);
+        await evoSetWebhook(instanceName, webhookUrl).catch(() => {});
+        await updateBotConnectionStatus(bot.id, "qr", {
+          evolution_base_url: evolutionBaseUrl,
+          evolution_instance: instanceName,
+        });
+        return res.json({ status: "qr", qrcode, instance: instanceName });
+      } catch (_) {
+        // Cai no fluxo de recriacao abaixo
+      }
+    }
+
+    // Criar instancia nova (ou recriar apos falha de state)
+    let created;
+    try {
+      created = await evoCreateInstance(instanceName, webhookUrl);
+    } catch (err) {
+      // Instancia pode ja existir no Evolution: tentar pegar QR direto
+      if (err.httpStatus === 409 || err.httpStatus === 403) {
+        const qrData = await evoGetQr(instanceName);
+        const qrcode = extractQrBase64(qrData);
+        await evoSetWebhook(instanceName, webhookUrl).catch(() => {});
+        await updateBotConnectionStatus(bot.id, "qr", {
+          evolution_base_url: evolutionBaseUrl,
+          evolution_instance: instanceName,
+        });
+        return res.json({ status: "qr", qrcode, instance: instanceName });
+      }
+      throw err;
+    }
+
+    const instanceHash =
+      created?.hash?.apikey ||
+      created?.hash ||
+      created?.instance?.apikey ||
+      created?.apikey ||
+      "";
+    const qrcode = extractQrBase64(created);
+
+    await updateBotConnectionStatus(bot.id, "qr", {
+      evolution_base_url: evolutionBaseUrl,
+      evolution_instance: instanceName,
+      evolution_api_key: instanceHash || evolutionGlobalKey,
+    });
+
+    res.json({ status: "qr", qrcode, instance: instanceName });
+  } catch (error) {
+    console.error(`[EVO connect] ${error.message}`);
+    res.status(500).json({
+      error: "Falha ao iniciar conexao.",
+      detail: error.message,
+    });
+  }
+});
+
+app.get("/api/chatbots/:id/connection-state", requireUser, async (req, res) => {
+  try {
+    if (!hasEvolutionConfig()) {
+      return res.status(503).json({
+        error: "Servidor sem EVOLUTION_BASE_URL ou EVOLUTION_GLOBAL_API_KEY configurados.",
+      });
+    }
+    const bot = await findUserBot(req.user.id, req.params.id);
+    if (!bot) return res.status(404).json({ error: "Chatbot nao encontrado." });
+    if (!bot.evolution_instance) {
+      return res.json({ status: bot.whatsapp_connection_status || "disconnected" });
+    }
+
+    let status = bot.whatsapp_connection_status || "disconnected";
+    try {
+      const raw = await evoGetState(bot.evolution_instance);
+      status = normalizeEvolutionState(raw);
+    } catch (err) {
+      console.warn(`[EVO state] ${err.message}`);
+    }
+
+    if (status !== bot.whatsapp_connection_status) {
+      await updateBotConnectionStatus(bot.id, status);
+    }
+
+    res.json({ status });
+  } catch (error) {
+    res.status(500).json({ error: "Falha ao consultar estado.", detail: error.message });
+  }
+});
+
+app.post("/api/chatbots/:id/disconnect", requireUser, async (req, res) => {
+  try {
+    if (!hasEvolutionConfig()) {
+      return res.status(503).json({ error: "Servidor sem EVOLUTION_BASE_URL ou EVOLUTION_GLOBAL_API_KEY configurados." });
+    }
+    const bot = await findUserBot(req.user.id, req.params.id);
+    if (!bot) return res.status(404).json({ error: "Chatbot nao encontrado." });
+    if (!bot.evolution_instance) {
+      await updateBotConnectionStatus(bot.id, "disconnected");
+      return res.json({ ok: true, status: "disconnected" });
+    }
+    try {
+      await evoLogout(bot.evolution_instance);
+    } catch (err) {
+      console.warn(`[EVO logout] ${err.message}`);
+    }
+    await updateBotConnectionStatus(bot.id, "disconnected", {
+      whatsapp_connected_at: null,
+    });
+    res.json({ ok: true, status: "disconnected" });
+  } catch (error) {
+    res.status(500).json({ error: "Falha ao desconectar.", detail: error.message });
+  }
 });
 
 app.post("/api/chatbots/:id/test", requireUser, async (req, res) => {
@@ -821,8 +1097,13 @@ app.post("/webhook/evolution/:botId", async (req, res) => {
       .single();
 
     if (!bot) return res.status(404).json({ error: "Chatbot nao encontrado." });
-    if (!isBotConfigured(bot)) {
+    if (!bot.openai_api_key || !bot.evolution_instance) {
       return res.status(400).json({ error: "Chatbot sem configuracao completa." });
+    }
+
+    // Mensagem chegando = conexao aberta; atualizar status de forma oportunistica
+    if (bot.whatsapp_connection_status !== "open") {
+      updateBotConnectionStatus(bot.id, "open").catch(() => {});
     }
 
     const remoteJid = req.body?.data?.key?.remoteJid || req.body?.remoteJid;

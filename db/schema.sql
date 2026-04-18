@@ -20,6 +20,8 @@ create table if not exists public.chatbots (
   knowledge_base text not null default '',
   whatsapp_test_filter_enabled boolean not null default false,
   whatsapp_test_phone text not null default '',
+  whatsapp_connection_status text not null default 'disconnected',
+  whatsapp_connected_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -31,6 +33,12 @@ alter table public.chatbots
   add column if not exists whatsapp_test_filter_enabled boolean not null default false;
 alter table public.chatbots
   add column if not exists whatsapp_test_phone text not null default '';
+
+-- migracao idempotente (conexao gerenciada do WhatsApp)
+alter table public.chatbots
+  add column if not exists whatsapp_connection_status text not null default 'disconnected';
+alter table public.chatbots
+  add column if not exists whatsapp_connected_at timestamptz;
 
 -- -----------------------------
 -- Tabela: leads
