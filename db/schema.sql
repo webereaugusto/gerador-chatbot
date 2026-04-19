@@ -190,3 +190,56 @@ create policy "api_keys_delete_own"
 
 -- Projetos antigos: se a tabela api_keys ainda nao existir, rode apenas o bloco
 -- "Tabela: api_keys" e as politicas "API keys" acima no SQL Editor.
+
+-- -----------------------------
+-- Tabela: chatbot_integrations (Google Sheets / Google Docs)
+-- -----------------------------
+create table if not exists public.chatbot_integrations (
+  id uuid primary key default gen_random_uuid(),
+  chatbot_id uuid not null references public.chatbots(id) on delete cascade,
+  type text not null check (type in ('google_sheet', 'google_doc')),
+  name text not null,
+  description text not null default '',
+  google_id text not null,
+  sheet_range text,
+  enabled boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists chatbot_integrations_chatbot_id_idx
+  on public.chatbot_integrations(chatbot_id);
+
+alter table public.chatbot_integrations enable row level security;
+
+drop policy if exists "integrations_select_own" on public.chatbot_integrations;
+create policy "integrations_select_own"
+  on public.chatbot_integrations for select
+  using (
+    exists (
+      select 1 from public.chatbots c
+      where c.id = chatbot_integrations.chatbot_id
+        and c.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "integrations_insert_own" on public.chatbot_integrations;
+create policy "integrations_insert_own"
+  on public.chatbot_integrations for insert
+  with check (
+    exists (
+      select 1 from public.chatbots c
+      where c.id = chatbot_integrations.chatbot_id
+        and c.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "integrations_delete_own" on public.chatbot_integrations;
+create policy "integrations_delete_own"
+  on public.chatbot_integrations for delete
+  using (
+    exists (
+      select 1 from public.chatbots c
+      where c.id = chatbot_integrations.chatbot_id
+        and c.user_id = auth.uid()
+    )
+  );

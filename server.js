@@ -22,6 +22,135 @@ function hasEvolutionConfig() {
   return Boolean(evolutionBaseUrl && evolutionGlobalKey);
 }
 
+// ---------------------------------------------------------------
+// Google integrations — fetch helpers + tool calling
+// ---------------------------------------------------------------
+
+/** In-memory cache for Google content. Key: "type:googleId:range", TTL 5 min */
+const integrationCache = new Map();
+const INTEGRATION_CACHE_TTL_MS = 5 * 60 * 1000;
+const INTEGRATION_MAX_CHARS = 20000;
+
+function extractGoogleId(url) {
+  const m = String(url || "").match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
+function detectGoogleType(url) {
+  if (/spreadsheets/.test(url)) return "google_sheet";
+  if (/document/.test(url)) return "google_doc";
+  return null;
+}
+
+async function fetchGoogleSheet(googleId, range) {
+  const cacheKey = `sheet:${googleId}:${range || ""}`;
+  const cached = integrationCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < INTEGRATION_CACHE_TTL_MS) {
+    return cached.content;
+  }
+
+  let url = `https://docs.google.com/spreadsheets/d/${googleId}/export?format=csv`;
+  if (range) url += `&range=${encodeURIComponent(range)}`;
+
+  const res = await axios.get(url, { timeout: 10000, responseType: "text" });
+  const content = String(res.data || "").slice(0, INTEGRATION_MAX_CHARS);
+  integrationCache.set(cacheKey, { content, ts: Date.now() });
+  return content;
+}
+
+async function fetchGoogleDoc(googleId) {
+  const cacheKey = `doc:${googleId}`;
+  const cached = integrationCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < INTEGRATION_CACHE_TTL_MS) {
+    return cached.content;
+  }
+
+  const url = `https://docs.google.com/document/d/${googleId}/export?format=txt`;
+  const res = await axios.get(url, { timeout: 10000, responseType: "text" });
+  const content = String(res.data || "").slice(0, INTEGRATION_MAX_CHARS);
+  integrationCache.set(cacheKey, { content, ts: Date.now() });
+  return content;
+}
+
+async function fetchIntegrationContent(integration) {
+  if (integration.type === "google_sheet") {
+    return fetchGoogleSheet(integration.google_id, integration.sheet_range);
+  }
+  if (integration.type === "google_doc") {
+    return fetchGoogleDoc(integration.google_id);
+  }
+  throw new Error(`Tipo de integracao desconhecido: ${integration.type}`);
+}
+
+/** Models that do NOT support tool calling */
+const MODELS_NO_TOOLS = ["o1-mini"];
+
+async function loadEnabledIntegrations(botId) {
+  if (!supabaseAdmin) return [];
+  const { data } = await supabaseAdmin
+    .from("chatbot_integrations")
+    .select("*")
+    .eq("chatbot_id", botId)
+    .eq("enabled", true)
+    .order("created_at", { ascending: true });
+  return data || [];
+}
+  if (!integrations || integrations.length === 0) return undefined;
+  const sourceList = integrations
+    .map((i) => `- ${i.id} (${i.name}): ${i.description || "sem descricao"}`)
+    .join("\n");
+  return [
+    {
+      type: "function",
+      function: {
+        name: "consult_integration",
+        description:
+          `Consulta uma fonte de dados externa configurada para este chatbot. ` +
+          `Use quando o usuario pedir informacoes que possam estar nessas fontes. ` +
+          `Fontes disponiveis:\n${sourceList}`,
+        parameters: {
+          type: "object",
+          properties: {
+            integration_id: {
+              type: "string",
+              enum: integrations.map((i) => i.id),
+              description: "ID da fonte de dados a consultar.",
+            },
+          },
+          required: ["integration_id"],
+        },
+      },
+    },
+  ];
+}
+
+async function executeToolCalls(toolCalls, integrations) {
+  const resultMessages = [];
+  for (const tc of toolCalls) {
+    let content;
+    try {
+      const args = JSON.parse(tc.function.arguments || "{}");
+      const intId = args.integration_id;
+      const integration = integrations.find((i) => i.id === intId);
+      if (!integration) {
+        content = `Integracao "${intId}" nao encontrada.`;
+      } else {
+        const raw = await fetchIntegrationContent(integration);
+        const label = integration.type === "google_sheet" ? "Planilha" : "Documento";
+        content = `${label} "${integration.name}" (${integration.description}):\n\n${raw}`;
+      }
+    } catch (err) {
+      content = `Erro ao consultar integracao: ${err.message}`;
+    }
+    resultMessages.push({
+      role: "tool",
+      tool_call_id: tc.id,
+      content,
+    });
+  }
+  return resultMessages;
+}
+
 const missingSupabase =
   !supabaseUrl || !supabaseAnonKey || !supabaseServiceRole;
 
@@ -189,27 +318,56 @@ function serializeBot(req, bot) {
   };
 }
 
-async function generateAiReply(bot, userMessage, history = []) {
+async function generateAiReply(bot, userMessage, history = [], integrations = []) {
   const client = new OpenAI({ apiKey: bot.openai_api_key });
+  const model = normalizeModel(bot.openai_model);
+  const temperature =
+    typeof bot.temperature === "number" ? bot.temperature : 0.6;
+  const maxTokens = bot.max_tokens || 400;
+
   const messages = [
     { role: "system", content: buildSystemPrompt(bot) },
     ...history,
     { role: "user", content: userMessage },
   ];
 
+  const supportsTools =
+    !MODELS_NO_TOOLS.includes(model) &&
+    Array.isArray(integrations) &&
+    integrations.length > 0;
+  const tools = supportsTools ? buildTools(integrations) : undefined;
+
   try {
-    const model = normalizeModel(bot.openai_model);
-    const temperature =
-      typeof bot.temperature === "number" ? bot.temperature : 0.6;
-    const maxTokens = bot.max_tokens || 400;
-    const response = await client.chat.completions.create({
+    const resp1 = await client.chat.completions.create({
       model,
       temperature,
       max_tokens: maxTokens,
       messages,
+      ...(tools ? { tools, tool_choice: "auto" } : {}),
     });
 
-    return response.choices?.[0]?.message?.content?.trim() || "Sem resposta da IA.";
+    const msg1 = resp1.choices?.[0]?.message;
+
+    if (!msg1?.tool_calls || msg1.tool_calls.length === 0) {
+      return msg1?.content?.trim() || "Sem resposta da IA.";
+    }
+
+    // Tool calling: execute and do 2nd call
+    const toolResults = await executeToolCalls(msg1.tool_calls, integrations);
+    const messages2 = [
+      ...messages,
+      { role: "assistant", content: msg1.content || null, tool_calls: msg1.tool_calls },
+      ...toolResults,
+    ];
+
+    const resp2 = await client.chat.completions.create({
+      model,
+      temperature,
+      max_tokens: maxTokens,
+      messages: messages2,
+    });
+
+    return resp2.choices?.[0]?.message?.content?.trim() || "Sem resposta da IA.";
   } catch (err) {
     const msg = `[OPENAI] falhou | status=${err.status || "?"} | code=${err.code || "?"} | err=${err.message}`;
     const wrapped = new Error(msg);
@@ -1073,6 +1231,88 @@ app.patch("/api/leads/:id/takeover", requireUser, async (req, res) => {
 });
 
 // ---------------------------------------------------------------
+// Integracoes Google (Sheets / Docs) por chatbot
+// ---------------------------------------------------------------
+app.get("/api/chatbots/:id/integrations", requireUser, async (req, res) => {
+  const { data: bot } = await supabaseAdmin
+    .from("chatbots")
+    .select("id, user_id")
+    .eq("id", req.params.id)
+    .eq("user_id", req.user.id)
+    .maybeSingle();
+  if (!bot) return res.status(404).json({ error: "Chatbot nao encontrado." });
+
+  const { data, error } = await supabaseAdmin
+    .from("chatbot_integrations")
+    .select("*")
+    .eq("chatbot_id", bot.id)
+    .order("created_at", { ascending: true });
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ items: data || [] });
+});
+
+app.post("/api/chatbots/:id/integrations", requireUser, async (req, res) => {
+  const { data: bot } = await supabaseAdmin
+    .from("chatbots")
+    .select("id, user_id")
+    .eq("id", req.params.id)
+    .eq("user_id", req.user.id)
+    .maybeSingle();
+  if (!bot) return res.status(404).json({ error: "Chatbot nao encontrado." });
+
+  const { url, name, description, sheetRange, enabled } = req.body || {};
+
+  const googleId = extractGoogleId(url);
+  if (!googleId) return res.status(400).json({ error: "URL invalida. Nao foi possivel extrair o ID do Google." });
+
+  const type = detectGoogleType(url);
+  if (!type) return res.status(400).json({ error: "URL invalida. Use uma URL de Google Sheets ou Google Docs." });
+
+  const nameStr = String(name || "").trim().slice(0, 120);
+  if (!nameStr) return res.status(400).json({ error: "Nome e obrigatorio." });
+
+  const { data, error } = await supabaseAdmin
+    .from("chatbot_integrations")
+    .insert({
+      chatbot_id: bot.id,
+      type,
+      name: nameStr,
+      description: String(description || "").trim().slice(0, 500),
+      google_id: googleId,
+      sheet_range: type === "google_sheet" ? (String(sheetRange || "").trim() || null) : null,
+      enabled: enabled !== false,
+    })
+    .select("*")
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true, item: data });
+});
+
+app.delete("/api/chatbots/:id/integrations/:intId", requireUser, async (req, res) => {
+  const { data: bot } = await supabaseAdmin
+    .from("chatbots")
+    .select("id, user_id")
+    .eq("id", req.params.id)
+    .eq("user_id", req.user.id)
+    .maybeSingle();
+  if (!bot) return res.status(404).json({ error: "Chatbot nao encontrado." });
+
+  const { data, error } = await supabaseAdmin
+    .from("chatbot_integrations")
+    .delete()
+    .eq("id", req.params.intId)
+    .eq("chatbot_id", bot.id)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!data) return res.status(404).json({ error: "Integracao nao encontrada." });
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------
 // API externa v1 (somente leitura, chave de API)
 // ---------------------------------------------------------------
 app.get("/api/v1/chatbots", requireApiKey, async (req, res) => {
@@ -1267,7 +1507,8 @@ app.post("/api/public/chat/:id", async (req, res) => {
 
     const history = await getRecentHistory(lead.id, 12);
     const historyWithoutLast = history.slice(0, -1);
-    const reply = await generateAiReply(bot, message, historyWithoutLast);
+    const integrations = await loadEnabledIntegrations(bot.id);
+    const reply = await generateAiReply(bot, message, historyWithoutLast, integrations);
     await saveMessage(lead.id, "assistant", reply);
 
     res.json({ reply });
@@ -1461,7 +1702,8 @@ app.post("/webhook/evolution/:botId", async (req, res) => {
 
     const history = await getRecentHistory(lead.id, 12);
     const historyWithoutLast = history.slice(0, -1);
-    const reply = await generateAiReply(bot, text, historyWithoutLast);
+    const integrations = await loadEnabledIntegrations(bot.id);
+    const reply = await generateAiReply(bot, text, historyWithoutLast, integrations);
 
     await saveMessage(lead.id, "assistant", reply);
     await sendReply(bot, number, reply);

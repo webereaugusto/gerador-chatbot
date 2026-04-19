@@ -1476,6 +1476,123 @@ textarea {
   background: var(--bg-elev-2);
 }
 
+/* Integrations list */
+.integrations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.integrations-empty {
+  font-size: 13px;
+  padding: 10px 0;
+}
+
+.integration-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.integration-item-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 7px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  background: rgba(99, 102, 241, 0.14);
+  color: #a5b4fc;
+}
+
+.integration-item-badge.sheet {
+  background: rgba(34, 197, 94, 0.13);
+  color: #4ade80;
+}
+
+.integration-item-badge.doc {
+  background: rgba(59, 130, 246, 0.14);
+  color: #93c5fd;
+}
+
+.integration-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.integration-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.integration-item-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.integration-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Add form */
+.integration-add-form {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.integration-add-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.integration-add-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.integration-add-col-full {
+  flex: 0 0 100%;
+  width: 100%;
+}
+
+.integration-add-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.btn-sm {
+  padding: 7px 16px !important;
+  font-size: 13px !important;
+}
+
+@media (max-width: 600px) {
+  .integration-add-row {
+    flex-direction: column;
+  }
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;

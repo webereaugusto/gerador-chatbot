@@ -427,8 +427,77 @@
             </div>
           </section>
 
-          <!-- Comportamento (prompt) -->
-          <section class="config-capsule is-open" data-capsule="prompt">
+          <!-- Integrações Google -->
+          <section class="config-capsule" data-capsule="google">
+            <button
+              type="button"
+              class="config-capsule-trigger"
+              aria-expanded="false"
+              aria-controls="capsule-panel-google"
+              id="capsule-trigger-google"
+            >
+              <span class="config-capsule-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              </span>
+              <span class="config-capsule-titles">
+                <span class="config-capsule-title">Integrações Google</span>
+                <span class="config-capsule-desc">Google Sheets e Docs como fontes de dados para o agente</span>
+              </span>
+              <span class="config-capsule-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+            </button>
+            <div class="config-capsule-panel" id="capsule-panel-google" role="region" aria-labelledby="capsule-trigger-google" hidden>
+              <p class="hint" style="margin-top:0; margin-bottom:12px;">
+                O agente usará <strong>tool calling</strong> para consultar estas fontes quando julgar necessário.
+                A planilha/doc precisa estar com acesso <strong>"Qualquer pessoa com o link pode visualizar"</strong>.
+              </p>
+
+              <!-- Lista de integrações existentes -->
+              <div id="integrationsList" class="integrations-list">
+                <div class="integrations-empty muted">Nenhuma integração configurada.</div>
+              </div>
+
+              <!-- Formulário inline para adicionar -->
+              <div class="integration-add-form" id="integrationAddForm">
+                <div class="integration-add-row">
+                  <div class="integration-add-col">
+                    <label for="intName">Nome (exibição)</label>
+                    <input id="intName" type="text" placeholder="Tabela de preços" autocomplete="off" />
+                  </div>
+                  <div class="integration-add-col">
+                    <label for="intUrl">URL da planilha ou documento</label>
+                    <input id="intUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..." autocomplete="off" />
+                  </div>
+                </div>
+                <div class="integration-add-row">
+                  <div class="integration-add-col integration-add-col-full">
+                    <label for="intDescription">Descrição para o agente</label>
+                    <input
+                      id="intDescription"
+                      type="text"
+                      placeholder="Ex.: tabela de preços por produto e quantidade"
+                      autocomplete="off"
+                    />
+                    <p class="hint">O agente usa essa descrição para saber quando consultar esta fonte.</p>
+                  </div>
+                </div>
+                <div class="integration-add-row" id="intRangeRow" hidden>
+                  <div class="integration-add-col">
+                    <label for="intRange">Intervalo (opcional)</label>
+                    <input id="intRange" type="text" placeholder="A1:Z100 ou Nome!A1:Z50" autocomplete="off" />
+                    <p class="hint">Deixe em branco para exportar a planilha inteira.</p>
+                  </div>
+                </div>
+                <div class="integration-add-footer">
+                  <span id="intAddStatus" class="status-text"></span>
+                  <button type="button" class="btn-primary btn-sm" id="intAddBtn">Adicionar</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Comportamento (prompt) -->          <section class="config-capsule is-open" data-capsule="prompt">
             <button
               type="button"
               class="config-capsule-trigger"

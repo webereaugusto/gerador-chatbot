@@ -353,6 +353,18 @@ function openBotModal(bot) {
   updateBotModalSubtitle();
   updatePromptCharCount();
 
+  // carrega integracoes Google do chatbot (async, nao bloqueia abertura do modal)
+  loadBotIntegrations(bot?.id || "");
+  // reset do form de adicionar
+  ["intUrl", "intName", "intDescription", "intRange"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  const rangeRow = document.getElementById("intRangeRow");
+  if (rangeRow) rangeRow.hidden = true;
+  const intStatus = document.getElementById("intAddStatus");
+  if (intStatus) { intStatus.textContent = ""; intStatus.className = "status-text"; }
+
   const statusEl = document.getElementById("botStatus");
   if (statusEl) {
     statusEl.innerText = "";
@@ -540,6 +552,152 @@ function initLargeTextEditor() {
 }
 
 initLargeTextEditor();
+
+// ---------------------------------------------------------------
+// Integrações Google por chatbot
+// ---------------------------------------------------------------
+let currentBotIntegrations = [];
+
+function renderIntegrationsList() {
+  const container = document.getElementById("integrationsList");
+  if (!container) return;
+  if (!currentBotIntegrations.length) {
+    container.innerHTML = '<div class="integrations-empty muted">Nenhuma integração configurada.</div>';
+    return;
+  }
+  container.innerHTML = currentBotIntegrations
+    .map((item) => {
+      const typeLabel = item.type === "google_sheet" ? "Sheet" : "Doc";
+      const typeClass = item.type === "google_sheet" ? "sheet" : "doc";
+      const desc = escapeHtml(item.description || item.name || "");
+      const range = item.sheet_range ? ` · ${escapeHtml(item.sheet_range)}` : "";
+      return `
+        <div class="integration-item" data-int-id="${escapeHtml(item.id)}">
+          <span class="integration-item-badge ${typeClass}">${typeLabel}</span>
+          <div class="integration-item-info">
+            <div class="integration-item-name">${escapeHtml(item.name)}</div>
+            <div class="integration-item-desc">${desc}${range}</div>
+          </div>
+          <div class="integration-item-actions">
+            <button
+              class="icon-only-btn danger"
+              data-action="delete-int"
+              data-int-id="${escapeHtml(item.id)}"
+              title="Remover"
+            >${ICONS.trash}</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+async function loadBotIntegrations(botId) {
+  if (!botId) {
+    currentBotIntegrations = [];
+    renderIntegrationsList();
+    return;
+  }
+  try {
+    const res = await authFetch(`/api/chatbots/${botId}/integrations`);
+    if (!res.ok) { currentBotIntegrations = []; }
+    else {
+      const data = await res.json().catch(() => ({}));
+      currentBotIntegrations = data.items || [];
+    }
+  } catch {
+    currentBotIntegrations = [];
+  }
+  renderIntegrationsList();
+}
+
+function detectIntType(url) {
+  if (/spreadsheets/.test(url)) return "google_sheet";
+  if (/document/.test(url)) return "google_doc";
+  return null;
+}
+
+function initIntegrationsCapsule() {
+  const urlInput = document.getElementById("intUrl");
+  const rangeRow = document.getElementById("intRangeRow");
+  if (urlInput && rangeRow) {
+    urlInput.addEventListener("input", () => {
+      const type = detectIntType(urlInput.value);
+      rangeRow.hidden = type !== "google_sheet";
+    });
+  }
+
+  const addBtn = document.getElementById("intAddBtn");
+  const statusEl = document.getElementById("intAddStatus");
+  if (addBtn) {
+    addBtn.addEventListener("click", async () => {
+      const botId = getFieldValue("botId", "");
+      if (!botId) {
+        if (statusEl) { statusEl.className = "status-text error"; statusEl.textContent = "Salve o chatbot primeiro."; }
+        return;
+      }
+      const url = (document.getElementById("intUrl")?.value || "").trim();
+      const name = (document.getElementById("intName")?.value || "").trim();
+      const description = (document.getElementById("intDescription")?.value || "").trim();
+      const sheetRange = (document.getElementById("intRange")?.value || "").trim();
+
+      if (!url || !name) {
+        if (statusEl) { statusEl.className = "status-text error"; statusEl.textContent = "Nome e URL são obrigatórios."; }
+        return;
+      }
+
+      addBtn.disabled = true;
+      if (statusEl) { statusEl.className = "status-text"; statusEl.textContent = "Adicionando..."; }
+
+      try {
+        const res = await authFetch(`/api/chatbots/${botId}/integrations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, name, description, sheetRange }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Falha ao adicionar.");
+
+        currentBotIntegrations.push(data.item);
+        renderIntegrationsList();
+
+        document.getElementById("intUrl").value = "";
+        document.getElementById("intName").value = "";
+        document.getElementById("intDescription").value = "";
+        if (document.getElementById("intRange")) document.getElementById("intRange").value = "";
+        if (rangeRow) rangeRow.hidden = true;
+
+        if (statusEl) { statusEl.className = "status-text ok"; statusEl.textContent = "Adicionado."; }
+        setTimeout(() => { if (statusEl) statusEl.textContent = ""; }, 2500);
+      } catch (err) {
+        if (statusEl) { statusEl.className = "status-text error"; statusEl.textContent = err.message || "Erro."; }
+      } finally {
+        addBtn.disabled = false;
+      }
+    });
+  }
+
+  document.getElementById("integrationsList")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-action='delete-int']");
+    if (!btn) return;
+    const intId = btn.dataset.intId;
+    const botId = getFieldValue("botId", "");
+    if (!botId || !intId) return;
+    if (!confirm("Remover esta integração?")) return;
+    btn.disabled = true;
+    try {
+      const res = await authFetch(`/api/chatbots/${botId}/integrations/${intId}`, { method: "DELETE" });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Falha."); }
+      currentBotIntegrations = currentBotIntegrations.filter((i) => i.id !== intId);
+      renderIntegrationsList();
+    } catch (err) {
+      alert("Não foi possível remover: " + err.message);
+      btn.disabled = false;
+    }
+  });
+}
+
+initIntegrationsCapsule();
 
 document.getElementById("closeTestModalBtn").addEventListener("click", () => {
   testModal.classList.remove("open");
