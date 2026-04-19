@@ -95,6 +95,8 @@ async function loadEnabledIntegrations(botId) {
     .order("created_at", { ascending: true });
   return data || [];
 }
+
+function buildTools(integrations) {
   if (!integrations || integrations.length === 0) return undefined;
   const sourceList = integrations
     .map((i) => `- ${i.id} (${i.name}): ${i.description || "sem descricao"}`)
