@@ -669,15 +669,27 @@ async function evoDeleteInstance(instanceName) {
 }
 
 function extractOwnerPhone(raw) {
+  // A Evolution API v2 retorna ownerJid em varios campos dependendo da versao/endpoint
   const jid =
     raw?.instance?.owner ||
+    raw?.instance?.ownerJid ||
     raw?.ownerJid ||
     raw?.owner ||
     raw?.data?.instance?.owner ||
+    raw?.data?.instance?.ownerJid ||
     raw?.data?.owner ||
+    raw?.data?.ownerJid ||
     null;
   if (!jid || typeof jid !== "string") return null;
-  return jid.split("@")[0].replace(/\D/g, "") || null;
+  const digits = jid.split("@")[0].replace(/\D/g, "");
+  return digits || null;
+}
+
+function logEvoState(label, raw) {
+  try {
+    const preview = JSON.stringify(raw || {}).slice(0, 500);
+    console.log(`[EVO ownerJid debug] ${label}: ${preview}`);
+  } catch { /* noop */ }
 }
 
 async function updateBotConnectionStatus(botId, status, extra = {}) {
@@ -696,10 +708,13 @@ async function updateBotConnectionStatus(botId, status, extra = {}) {
           .single();
         if (current?.evolution_instance && !current.whatsapp_share_phone) {
           const state = await evoGetState(current.evolution_instance);
+          logEvoState("updateBotConnectionStatus", state);
           const phone = extractOwnerPhone(state);
           if (phone) {
             update.whatsapp_share_phone = phone;
             console.log(`[EVO] capturou ownerPhone=${phone} para bot=${botId}`);
+          } else {
+            console.warn(`[EVO] ownerJid nao encontrado no retorno do evoGetState`);
           }
         }
       } catch (err) {
@@ -1083,6 +1098,7 @@ app.get("/api/chatbots/:id/connection-state", requireUser, async (req, res) => {
 
     if (status === "open" && !bot.whatsapp_share_phone) {
       // Aproveita o raw que ja temos para capturar o numero
+      logEvoState("connection-state polling", raw);
       const phone = raw ? extractOwnerPhone(raw) : null;
       await updateBotConnectionStatus(
         bot.id,
@@ -1721,6 +1737,7 @@ app.post("/webhook/evolution/:botId", async (req, res) => {
     if (eventType === "CONNECTION_UPDATE" || eventType === "CONNECTION.UPDATE") {
       const payload = req.body?.data || req.body;
       const newStatus = normalizeEvolutionState(payload);
+      logEvoState(`webhook CONNECTION_UPDATE status=${newStatus}`, req.body);
       if (newStatus === "open") {
         const phone = extractOwnerPhone(payload);
         await updateBotConnectionStatus(
