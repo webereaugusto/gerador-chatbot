@@ -882,20 +882,25 @@ app.get("/api/config", (req, res) => {
 // Chatbots CRUD
 // ---------------------------------------------------------------
 function readBotFields(body) {
-  return {
+  const fields = {
     name: String(body?.name || "").trim(),
     openai_api_key: String(body?.openaiApiKey || "").trim(),
     system_prompt: String(body?.systemPrompt || "").trim(),
     knowledge_base: String(body?.knowledgeBase || "").trim(),
     whatsapp_test_filter_enabled: Boolean(body?.whatsappTestFilterEnabled),
     whatsapp_test_phone: normalizeBrPhone(body?.whatsappTestPhone || ""),
-    whatsapp_share_phone: normalizeBrPhone(body?.whatsappSharePhone || ""),
     openai_model: normalizeModel(body?.openaiModel),
     temperature: clampNumber(body?.temperature, 0, 1.5, 0.6),
     max_tokens: Math.round(clampNumber(body?.maxTokens, 80, 1500, 400)),
     humanize_enabled:
       body?.humanizeEnabled === undefined ? true : Boolean(body?.humanizeEnabled),
   };
+  // whatsapp_share_phone so e incluido quando vem explicitamente no body,
+  // para nao ser zerado por outros formularios (ex.: modal Configurar)
+  if (body && Object.prototype.hasOwnProperty.call(body, "whatsappSharePhone")) {
+    fields.whatsapp_share_phone = normalizeBrPhone(body.whatsappSharePhone || "");
+  }
+  return fields;
 }
 
 function validateTestFilter(fields) {
@@ -938,7 +943,7 @@ app.post("/api/chatbots", requireUser, async (req, res) => {
       knowledge_base: fields.knowledge_base,
       whatsapp_test_filter_enabled: fields.whatsapp_test_filter_enabled,
       whatsapp_test_phone: fields.whatsapp_test_phone,
-      whatsapp_share_phone: fields.whatsapp_share_phone,
+      whatsapp_share_phone: fields.whatsapp_share_phone || "",
       openai_model: fields.openai_model,
       temperature: fields.temperature,
       max_tokens: fields.max_tokens,
@@ -970,12 +975,16 @@ app.put("/api/chatbots/:id", requireUser, async (req, res) => {
     knowledge_base: fields.knowledge_base,
     whatsapp_test_filter_enabled: fields.whatsapp_test_filter_enabled,
     whatsapp_test_phone: fields.whatsapp_test_phone,
-    whatsapp_share_phone: fields.whatsapp_share_phone,
     openai_model: fields.openai_model,
     temperature: fields.temperature,
     max_tokens: fields.max_tokens,
     humanize_enabled: fields.humanize_enabled,
   };
+
+  // So atualiza whatsapp_share_phone quando o campo vem explicitamente no body
+  if (Object.prototype.hasOwnProperty.call(fields, "whatsapp_share_phone")) {
+    update.whatsapp_share_phone = fields.whatsapp_share_phone;
+  }
 
   if (fields.openai_api_key) update.openai_api_key = fields.openai_api_key;
 
