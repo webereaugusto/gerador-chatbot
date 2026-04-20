@@ -753,6 +753,19 @@ function formatRelativeTime(iso) {
   return date.toLocaleDateString("pt-BR");
 }
 
+/** Exibe número do chip (apenas dígitos) com máscara BR quando possível */
+function formatWhatsappPhoneDisplay(digits) {
+  const d = String(digits || "").replace(/\D/g, "");
+  if (!d) return "";
+  if (d.length >= 12 && d.startsWith("55")) {
+    const ddd = d.slice(2, 4);
+    const rest = d.slice(4);
+    if (rest.length === 9) return `+55 (${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    if (rest.length === 8) return `+55 (${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+  }
+  return d;
+}
+
 const ICONS = {
   bot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="3"/><path d="M12 2v6"/><circle cx="9" cy="14" r="1.2" fill="currentColor"/><circle cx="15" cy="14" r="1.2" fill="currentColor"/><path d="M8 18h8"/></svg>',
   alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
@@ -764,7 +777,6 @@ const ICONS = {
   widget: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
   leads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',
-  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>',
   power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>',
@@ -824,6 +836,15 @@ function renderBots() {
                 <span class="status-label">${s.label}</span>
                 ${subtitle ? `<span class="status-sep">·</span><span class="status-sub">${escapeHtml(subtitle)}</span>` : ""}
               </div>
+              ${
+                status === "open"
+                  ? `<div class="bot-card-wa-phone">${
+                      bot.whatsappSharePhone
+                        ? `<span class="bot-card-wa-phone-label">Chip</span><span class="bot-card-wa-phone-num">${escapeHtml(formatWhatsappPhoneDisplay(bot.whatsappSharePhone))}</span>`
+                        : '<span class="bot-card-wa-phone-pending">Sincronizando número do WhatsApp…</span>'
+                    }</div>`
+                  : ""
+              }
             </div>
             <div class="bot-avatar bot-avatar-${s.tone}">${s.avatarIcon}</div>
           </div>
@@ -848,7 +869,6 @@ function renderBots() {
           ${primaryAction}
 
           <div class="bot-action-row">
-            <button class="bot-action-btn" data-action="test" data-id="${bot.id}">${ICONS.test}<span>TESTAR</span></button>
             <button class="bot-action-btn" data-action="widget" data-id="${bot.id}">${ICONS.widget}<span>WIDGET</span></button>
             <button class="bot-action-btn" data-action="share" data-id="${bot.id}">${ICONS.share}<span>COMPARTILHAR</span></button>
             <button class="bot-action-btn" data-action="leads" data-id="${bot.id}">${ICONS.leads}<span>LEADS</span></button>
@@ -856,7 +876,7 @@ function renderBots() {
 
           <div class="bot-card-footer">
             <div class="bot-footer-icons">
-              <button class="icon-only-btn" data-action="edit" data-id="${bot.id}" title="Editar">${ICONS.edit}</button>
+              <button class="icon-only-btn" data-action="test" data-id="${bot.id}" title="Testar">${ICONS.test}</button>
               <button class="icon-only-btn danger" data-action="delete" data-id="${bot.id}" title="Excluir">${ICONS.trash}</button>
             </div>
             <button class="bot-footer-cta" data-action="edit" data-id="${bot.id}">CONFIGURAR</button>

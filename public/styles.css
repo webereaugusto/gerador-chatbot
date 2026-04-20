@@ -523,6 +523,36 @@ textarea {
   font-weight: 500;
 }
 
+.bot-card-wa-phone {
+  margin-top: 8px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.bot-card-wa-phone-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.bot-card-wa-phone-num {
+  font-weight: 600;
+  color: #4ade80;
+  letter-spacing: 0.02em;
+}
+
+.bot-card-wa-phone-pending {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .bot-avatar {
   width: 44px;
   height: 44px;
