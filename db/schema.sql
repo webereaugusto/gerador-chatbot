@@ -188,6 +188,10 @@ create policy "api_keys_delete_own"
   on public.api_keys for delete
   using (auth.uid() = user_id);
 
+-- migracao idempotente (numero de compartilhamento WhatsApp por chatbot)
+alter table public.chatbots
+  add column if not exists whatsapp_share_phone text not null default '';
+
 -- Projetos antigos: se a tabela api_keys ainda nao existir, rode apenas o bloco
 -- "Tabela: api_keys" e as politicas "API keys" acima no SQL Editor.
 

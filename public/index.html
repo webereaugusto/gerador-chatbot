@@ -612,9 +612,73 @@
       </div>
     </div>
 
-    <!-- Modal Widget -->
-    <div class="modal-backdrop" id="widgetModal">
+    <!-- Modal Compartilhar -->
+    <div class="modal-backdrop" id="shareModal">
       <div class="modal">
+        <div class="modal-header">
+          <h2>Compartilhar chatbot</h2>
+          <button class="icon-btn" id="closeShareModalBtn" aria-label="Fechar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <p class="muted">
+          Compartilhe um link direto para conversar com o chatbot via WhatsApp, ou cole o snippet
+          em qualquer site para exibir um botão flutuante de WhatsApp.
+        </p>
+
+        <!-- Número + mensagem -->
+        <div class="share-setup-row">
+          <div class="share-setup-col">
+            <label for="sharePhone">Número do WhatsApp (DDI+DDD, só dígitos)</label>
+            <input
+              id="sharePhone"
+              type="tel"
+              placeholder="5511999990000"
+              autocomplete="off"
+            />
+            <p class="hint">Número conectado ao chatbot. Ex.: <code>5511999990000</code>.</p>
+          </div>
+          <div class="share-setup-col">
+            <label for="shareMessage">Mensagem de abertura</label>
+            <input
+              id="shareMessage"
+              type="text"
+              value="Olá! Gostaria de saber mais."
+            />
+            <p class="hint">Pré-texto que aparece na conversa do WhatsApp.</p>
+          </div>
+        </div>
+        <div class="actions-row" style="margin-bottom:8px;">
+          <button class="btn-primary btn-sm" id="saveSharePhoneBtn">Salvar número</button>
+          <span id="sharePhoneStatus" class="status-text"></span>
+        </div>
+
+        <div class="section-label">Link direto (wa.me)</div>
+        <div class="share-copy-row">
+          <input id="shareWaLink" type="text" readonly class="share-readonly-input" />
+          <button class="btn-ghost btn-sm" id="copyShareLinkBtn">Copiar</button>
+        </div>
+
+        <div class="section-label" style="margin-top:18px;">Snippet — botão flutuante WhatsApp</div>
+        <p class="hint">Cole antes do <code>&lt;/body&gt;</code> do seu site.</p>
+        <textarea
+          id="shareSnippet"
+          readonly
+          style="min-height: 160px; font-family: monospace; font-size: 11.5px;"
+        ></textarea>
+        <div class="actions-row">
+          <button class="btn-primary" id="copyShareSnippetBtn">Copiar snippet</button>
+          <span id="shareSnippetStatus" class="status-text"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Widget -->
+    <div class="modal-backdrop" id="widgetModal">      <div class="modal">
         <div class="modal-header">
           <h2>Widget para seu site</h2>
           <button class="icon-btn" id="closeWidgetModalBtn" aria-label="Fechar">

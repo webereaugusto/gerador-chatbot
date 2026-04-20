@@ -763,6 +763,7 @@ const ICONS = {
   test: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2h8M10 2v7L5 21h14L14 9V2"/></svg>',
   widget: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
   leads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',
   edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>',
   power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>',
@@ -849,6 +850,7 @@ function renderBots() {
           <div class="bot-action-row">
             <button class="bot-action-btn" data-action="test" data-id="${bot.id}">${ICONS.test}<span>TESTAR</span></button>
             <button class="bot-action-btn" data-action="widget" data-id="${bot.id}">${ICONS.widget}<span>WIDGET</span></button>
+            <button class="bot-action-btn" data-action="share" data-id="${bot.id}">${ICONS.share}<span>COMPARTILHAR</span></button>
             <button class="bot-action-btn" data-action="leads" data-id="${bot.id}">${ICONS.leads}<span>LEADS</span></button>
           </div>
 
@@ -890,6 +892,8 @@ document.getElementById("botList").addEventListener("click", async (e) => {
     openTestModal(bot);
   } else if (action === "widget") {
     openWidgetModal(bot);
+  } else if (action === "share") {
+    openShareModal(bot);
   } else if (action === "leads") {
     document.querySelector('.nav-item[data-view="leads"]').click();
     document.getElementById("leadsBotSelect").value = bot.id;
@@ -1059,6 +1063,137 @@ document.getElementById("closeWidgetModalBtn").addEventListener("click", () => {
 });
 widgetModal.addEventListener("click", (e) => {
   if (e.target === widgetModal) widgetModal.classList.remove("open");
+});
+
+// ---------------------------------------------------------------
+// Modal Compartilhar
+// ---------------------------------------------------------------
+let currentShareBot = null;
+const shareModal = document.getElementById("shareModal");
+
+function buildWaLink(phone, msg) {
+  const p = phone.replace(/\D/g, "");
+  if (!p) return "";
+  const m = encodeURIComponent(msg || "");
+  return `https://wa.me/${p}${m ? "?text=" + m : ""}`;
+}
+
+function buildWaSnippet(bot, phone, msg) {
+  const link = buildWaLink(phone, msg);
+  const safeLink = link.replace(/"/g, "&quot;");
+  const safeName = (bot?.name || "Chatbot").replace(/</g, "&lt;");
+  return `<!-- WhatsApp: ${safeName} -->
+<a id="_wachat" href="${safeLink}"
+   target="_blank" rel="noopener"
+   style="position:fixed;bottom:24px;right:24px;z-index:9999;
+background:#25d366;width:60px;height:60px;border-radius:50%;
+display:flex;align-items:center;justify-content:center;
+box-shadow:0 4px 16px rgba(37,211,102,.45);text-decoration:none;
+transition:transform .2s">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" fill="#fff">
+    <path d="M16 3C9.373 3 4 8.373 4 15c0 2.385.668 4.61 1.824 6.5L4 29l7.703-1.797A11.933 11.933 0 0 0 16 28c6.627 0 12-5.373 12-12S22.627 3 16 3zm0 2c5.522 0 10 4.477 10 10s-4.478 10-10 10a9.94 9.94 0 0 1-5.016-1.352l-.36-.213-4.572 1.066 1.1-4.453-.234-.375A9.944 9.944 0 0 1 6 15c0-5.523 4.478-10 10-10zm-3.5 5.5c-.28 0-.735.105-1.12.525-.384.42-1.469 1.435-1.469 3.5s1.503 4.063 1.713 4.344c.21.28 2.918 4.656 7.156 6.344 3.54 1.396 4.256 1.12 5.02 1.05.763-.07 2.45-.999 2.796-1.964.348-.966.348-1.793.244-1.965-.104-.174-.384-.279-.804-.49-.42-.21-2.448-1.207-2.828-1.347-.384-.14-.663-.21-.943.21-.28.418-1.085 1.348-1.329 1.628-.244.28-.488.315-.908.105-.42-.21-1.773-.654-3.379-2.086-1.248-1.115-2.092-2.492-2.338-2.912-.244-.42-.026-.647.184-.857.187-.188.42-.49.628-.735.21-.244.28-.42.42-.699.14-.28.07-.525-.036-.735-.104-.21-.924-2.275-1.294-3.104C13.416 11.063 13.053 11 12.803 11a3.32 3.32 0 0 0-.303.003z"/>
+  </svg>
+</a>
+<script>
+  var _b=document.getElementById('_wachat');
+  _b.onmouseenter=function(){this.style.transform='scale(1.12)'};
+  _b.onmouseleave=function(){this.style.transform='scale(1)'};
+<\/script>`;
+}
+
+function refreshShareContent() {
+  const phone = document.getElementById("sharePhone").value.trim();
+  const msg   = document.getElementById("shareMessage").value.trim();
+  document.getElementById("shareWaLink").value   = buildWaLink(phone, msg);
+  document.getElementById("shareSnippet").value  = buildWaSnippet(currentShareBot, phone, msg);
+}
+
+function openShareModal(bot) {
+  currentShareBot = bot;
+  document.getElementById("sharePhone").value   = bot.whatsappSharePhone || "";
+  document.getElementById("shareMessage").value = "Olá! Gostaria de saber mais.";
+  document.getElementById("sharePhoneStatus").innerText = "";
+  document.getElementById("sharePhoneStatus").className = "status-text";
+  document.getElementById("shareSnippetStatus").innerText = "";
+  document.getElementById("shareSnippetStatus").className = "status-text";
+  refreshShareContent();
+  shareModal.classList.add("open");
+}
+
+document.getElementById("closeShareModalBtn").addEventListener("click", () => {
+  shareModal.classList.remove("open");
+});
+shareModal.addEventListener("click", (e) => {
+  if (e.target === shareModal) shareModal.classList.remove("open");
+});
+
+["sharePhone", "shareMessage"].forEach((id) => {
+  document.getElementById(id).addEventListener("input", refreshShareContent);
+});
+
+document.getElementById("saveSharePhoneBtn").addEventListener("click", async () => {
+  const phone  = document.getElementById("sharePhone").value.trim().replace(/\D/g, "");
+  const statusEl = document.getElementById("sharePhoneStatus");
+  if (!phone) {
+    statusEl.innerText = "Informe o número antes de salvar.";
+    statusEl.className = "status-text error";
+    return;
+  }
+  statusEl.innerText = "Salvando...";
+  statusEl.className = "status-text";
+  const res = await authFetch(`/api/chatbots/${currentShareBot.id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: currentShareBot.name,
+      openaiApiKey: currentShareBot.openaiApiKey,
+      systemPrompt: currentShareBot.systemPrompt,
+      knowledgeBase: currentShareBot.knowledgeBase,
+      whatsappTestFilterEnabled: currentShareBot.whatsappTestFilterEnabled,
+      whatsappTestPhone: currentShareBot.whatsappTestPhone,
+      whatsappSharePhone: phone,
+      openaiModel: currentShareBot.openaiModel,
+      temperature: currentShareBot.temperature,
+      maxTokens: currentShareBot.maxTokens,
+      humanizeEnabled: currentShareBot.humanizeEnabled,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    currentShareBot = data.item || currentShareBot;
+    currentShareBot.whatsappSharePhone = phone;
+    statusEl.innerText = "Salvo!";
+    statusEl.className = "status-text ok";
+    await loadChatbots();
+  } else {
+    statusEl.innerText = data.error || "Erro ao salvar.";
+    statusEl.className = "status-text error";
+  }
+});
+
+document.getElementById("copyShareLinkBtn").addEventListener("click", async () => {
+  const link = document.getElementById("shareWaLink").value;
+  if (!link) return;
+  try {
+    await navigator.clipboard.writeText(link);
+    const btn = document.getElementById("copyShareLinkBtn");
+    btn.innerText = "Copiado!";
+    setTimeout(() => (btn.innerText = "Copiar"), 2000);
+  } catch { /* silently fail */ }
+});
+
+document.getElementById("copyShareSnippetBtn").addEventListener("click", async () => {
+  const code = document.getElementById("shareSnippet").value;
+  const statusEl = document.getElementById("shareSnippetStatus");
+  try {
+    await navigator.clipboard.writeText(code);
+    statusEl.innerText = "Copiado!";
+    statusEl.className = "status-text ok";
+    setTimeout(() => { statusEl.innerText = ""; statusEl.className = "status-text"; }, 2000);
+  } catch {
+    statusEl.innerText = "Erro ao copiar.";
+    statusEl.className = "status-text error";
+  }
 });
 
 ["widgetTitle", "widgetSubtitle", "widgetGreeting", "widgetColor", "widgetPosition"].forEach(

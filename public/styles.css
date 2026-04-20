@@ -346,6 +346,36 @@ textarea {
   margin-top: 14px;
 }
 
+/* Compartilhar modal */
+.share-setup-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 560px) {
+  .share-setup-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.share-copy-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.share-readonly-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-family: monospace;
+  background: var(--bg);
+  color: var(--text-muted);
+}
+
 .status-text {
   font-size: 13px;
   color: var(--text-muted);
