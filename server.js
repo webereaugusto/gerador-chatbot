@@ -636,6 +636,16 @@ async function evoGetState(instanceName) {
   );
 }
 
+async function evoFetchInstance(instanceName) {
+  // Retorna detalhes completos da instancia incluindo owner/ownerJid
+  const res = await evoRequest(
+    "GET",
+    `/instance/fetchInstances?instanceName=${encodeURIComponent(instanceName)}`,
+  );
+  // Pode retornar array ou objeto direto
+  return Array.isArray(res) ? res[0] : res;
+}
+
 async function evoSetWebhook(instanceName, webhookUrl) {
   // Evolution v2 usa POST /webhook/set/:name com payload {url, events, byEvents, base64}
   return evoRequest("POST", `/webhook/set/${encodeURIComponent(instanceName)}`, {
@@ -707,14 +717,14 @@ async function updateBotConnectionStatus(botId, status, extra = {}) {
           .eq("id", botId)
           .single();
         if (current?.evolution_instance && !current.whatsapp_share_phone) {
-          const state = await evoGetState(current.evolution_instance);
-          logEvoState("updateBotConnectionStatus", state);
-          const phone = extractOwnerPhone(state);
+          const details = await evoFetchInstance(current.evolution_instance);
+          logEvoState("updateBotConnectionStatus/fetchInstance", details);
+          const phone = extractOwnerPhone(details);
           if (phone) {
             update.whatsapp_share_phone = phone;
             console.log(`[EVO] capturou ownerPhone=${phone} para bot=${botId}`);
           } else {
-            console.warn(`[EVO] ownerJid nao encontrado no retorno do evoGetState`);
+            console.warn(`[EVO] ownerJid nao encontrado no retorno do fetchInstances`);
           }
         }
       } catch (err) {
@@ -1097,9 +1107,17 @@ app.get("/api/chatbots/:id/connection-state", requireUser, async (req, res) => {
     }
 
     if (status === "open" && !bot.whatsapp_share_phone) {
-      // Aproveita o raw que ja temos para capturar o numero
-      logEvoState("connection-state polling", raw);
-      const phone = raw ? extractOwnerPhone(raw) : null;
+      // connectionState nao retorna owner — usar fetchInstances
+      let phone = raw ? extractOwnerPhone(raw) : null;
+      if (!phone) {
+        try {
+          const details = await evoFetchInstance(bot.evolution_instance);
+          logEvoState("connection-state polling/fetchInstance", details);
+          phone = extractOwnerPhone(details);
+        } catch (err) {
+          console.warn(`[EVO] fetchInstance falhou no polling: ${err.message}`);
+        }
+      }
       await updateBotConnectionStatus(
         bot.id,
         "open",
