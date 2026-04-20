@@ -346,34 +346,418 @@ textarea {
   margin-top: 14px;
 }
 
-/* Compartilhar modal */
-.share-setup-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-top: 10px;
+/* Modal Compartilhar (layout inspirado em dashboard) */
+.modal.modal-share {
+  max-width: 640px;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 92vh;
+}
+
+.modal-share-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-header-share {
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 22px 16px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--bg-elev-2) 0%, var(--bg-elev) 100%);
+}
+
+.modal-header-share-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.modal-header-share-text h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.modal-subtitle-share {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.modal-share .share-section {
+  padding: 18px 22px 4px;
+}
+
+.modal-share .share-section + .share-section {
+  padding-top: 8px;
+}
+
+.share-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.share-section-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  color: var(--primary);
+}
+
+.share-section-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.share-section-icon-accent {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.share-section-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.share-field {
+  margin-bottom: 14px;
+}
+
+.share-field-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.share-field-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.share-phone-row {
+  display: flex;
+  align-items: stretch;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.share-phone-cc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 18px;
+  border-right: 1px solid var(--border);
+}
+
+.share-phone-input,
+.share-input-wide {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
+.share-phone-input:focus,
+.share-input-wide:focus {
+  outline: none;
+}
+
+.share-input-wide {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-sizing: border-box;
+}
+
+.share-save-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
   margin-bottom: 4px;
 }
 
-@media (max-width: 560px) {
-  .share-setup-row {
-    grid-template-columns: 1fr;
-  }
+.share-save-status {
+  flex: 1;
+  min-width: 120px;
+  text-align: left;
 }
 
-.share-copy-row {
-  display: flex;
+.share-save-btn {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  align-items: stretch;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
 }
 
-.share-readonly-input {
+.share-block {
+  margin-bottom: 18px;
+}
+
+.share-block-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.share-block-header .share-badge,
+.share-block-header .btn-share-copy-inline {
+  flex-shrink: 0;
+}
+
+.share-block-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-right: auto;
+}
+
+.share-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.share-badge-wa {
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.share-badge-html {
+  color: #a78bfa;
+  border-color: rgba(167, 139, 250, 0.35);
+  background: rgba(167, 139, 250, 0.08);
+}
+
+.share-url-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: #0c0e14;
+}
+
+.share-url-input {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
-  font-family: monospace;
-  background: var(--bg);
+  border: none;
+  background: transparent;
   color: var(--text-muted);
+  padding: 12px 14px;
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+}
+
+.share-url-input:focus {
+  outline: none;
+}
+
+.btn-share-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--primary-hover);
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.btn-share-copy:hover {
+  background: rgba(99, 102, 241, 0.22);
+  color: var(--text);
+}
+
+.btn-share-copy-inline {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.btn-share-copy-inline:hover {
+  background: var(--primary-soft);
+}
+
+.share-block-header .btn-share-copy-inline {
+  margin-left: 0;
+}
+
+.share-code-window {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: #0a0c11;
+}
+
+.share-code-chrome {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #12151c;
+  border-bottom: 1px solid var(--border);
+}
+
+.share-code-dots {
+  display: flex;
+  gap: 6px;
+}
+.share-code-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.share-code-dots span:nth-child(1) {
+  background: #ff5f57;
+}
+.share-code-dots span:nth-child(2) {
+  background: #febc2e;
+}
+.share-code-dots span:nth-child(3) {
+  background: #28c840;
+}
+
+.share-code-filename {
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+}
+
+.share-code-textarea {
+  display: block;
+  width: 100%;
+  min-height: 168px;
+  margin: 0;
+  padding: 14px 16px;
+  border: none;
+  background: #0a0c11;
+  color: #c4b5fd;
+  font-family: ui-monospace, "Consolas", monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.share-code-textarea:focus {
+  outline: none;
+}
+
+.share-code-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.share-code-hint code {
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.share-snippet-status {
+  display: block;
+  margin-top: 6px;
+  min-height: 1em;
+}
+
+.modal-share-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 22px 20px;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.modal-share-footer .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 560px) {
+  .share-url-bar {
+    flex-direction: column;
+  }
+  .btn-share-copy {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    justify-content: center;
+  }
+  .share-block-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .share-block-header .share-badge {
+    align-self: flex-start;
+  }
+  .share-block-header .btn-share-copy-inline {
+    align-self: flex-end;
+  }
 }
 
 .status-text {

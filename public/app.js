@@ -1122,15 +1122,15 @@ transition:transform .2s">
 }
 
 function refreshShareContent() {
-  const phone = document.getElementById("sharePhone").value.trim();
-  const msg   = document.getElementById("shareMessage").value.trim();
-  document.getElementById("shareWaLink").value   = buildWaLink(phone, msg);
-  document.getElementById("shareSnippet").value  = buildWaSnippet(currentShareBot, phone, msg);
+  const phone = document.getElementById("sharePhone").value.trim().replace(/\D/g, "");
+  const msg = document.getElementById("shareMessage").value.trim();
+  document.getElementById("shareWaLink").value = buildWaLink(phone, msg);
+  document.getElementById("shareSnippet").value = buildWaSnippet(currentShareBot, phone, msg);
 }
 
 function openShareModal(bot) {
   currentShareBot = bot;
-  document.getElementById("sharePhone").value   = bot.whatsappSharePhone || "";
+  document.getElementById("sharePhone").value = bot.whatsappSharePhone || "";
   document.getElementById("shareMessage").value = "Olá! Gostaria de saber mais.";
   document.getElementById("sharePhoneStatus").innerText = "";
   document.getElementById("sharePhoneStatus").className = "status-text";
@@ -1140,11 +1140,20 @@ function openShareModal(bot) {
   shareModal.classList.add("open");
 }
 
-document.getElementById("closeShareModalBtn").addEventListener("click", () => {
+function closeShareModal() {
   shareModal.classList.remove("open");
-});
+}
+
+document.getElementById("closeShareModalBtn").addEventListener("click", closeShareModal);
+document.getElementById("closeShareModalFooterBtn").addEventListener("click", closeShareModal);
 shareModal.addEventListener("click", (e) => {
-  if (e.target === shareModal) shareModal.classList.remove("open");
+  if (e.target === shareModal) closeShareModal();
+});
+
+document.getElementById("openShareWaBtn").addEventListener("click", () => {
+  const url = document.getElementById("shareWaLink").value.trim();
+  if (!url) return;
+  window.open(url, "_blank", "noopener,noreferrer");
 });
 
 ["sharePhone", "shareMessage"].forEach((id) => {
@@ -1191,14 +1200,20 @@ document.getElementById("saveSharePhoneBtn").addEventListener("click", async () 
   }
 });
 
+function setShareCopyLabel(btnId, text) {
+  const btn = document.getElementById(btnId);
+  const lab = btn?.querySelector(".btn-share-copy-label");
+  if (lab) lab.textContent = text;
+  else if (btn) btn.textContent = text;
+}
+
 document.getElementById("copyShareLinkBtn").addEventListener("click", async () => {
   const link = document.getElementById("shareWaLink").value;
   if (!link) return;
   try {
     await navigator.clipboard.writeText(link);
-    const btn = document.getElementById("copyShareLinkBtn");
-    btn.innerText = "Copiado!";
-    setTimeout(() => (btn.innerText = "Copiar"), 2000);
+    setShareCopyLabel("copyShareLinkBtn", "Copiado!");
+    setTimeout(() => setShareCopyLabel("copyShareLinkBtn", "Copiar link"), 2000);
   } catch { /* silently fail */ }
 });
 
@@ -1207,12 +1222,17 @@ document.getElementById("copyShareSnippetBtn").addEventListener("click", async (
   const statusEl = document.getElementById("shareSnippetStatus");
   try {
     await navigator.clipboard.writeText(code);
-    statusEl.innerText = "Copiado!";
-    statusEl.className = "status-text ok";
-    setTimeout(() => { statusEl.innerText = ""; statusEl.className = "status-text"; }, 2000);
+    setShareCopyLabel("copyShareSnippetBtn", "Copiado!");
+    statusEl.innerText = "Snippet copiado para a área de transferência.";
+    statusEl.className = "status-text ok share-snippet-status";
+    setTimeout(() => {
+      setShareCopyLabel("copyShareSnippetBtn", "Copiar");
+      statusEl.innerText = "";
+      statusEl.className = "status-text share-snippet-status";
+    }, 2200);
   } catch {
     statusEl.innerText = "Erro ao copiar.";
-    statusEl.className = "status-text error";
+    statusEl.className = "status-text error share-snippet-status";
   }
 });
 
