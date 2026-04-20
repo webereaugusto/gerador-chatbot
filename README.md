@@ -3,56 +3,49 @@
 Aplicacao simples para criar chatbots independentes, cada um com:
 
 - Chave propria da OpenAI
-- Instancia propria da Evolution API
+- Instancia propria da Evolution API (WhatsApp)
 - Base de conhecimento propria
 - Webhook proprio
 - Leads e conversas armazenados no Supabase
+- Widget para site, botao WhatsApp para compartilhar e API externa v1
 
-## Pre-requisitos
+> 📖 **Primeira instalacao?** Siga o [**Manual de instalacao**](INSTALL.md)
+> passo a passo — Supabase, SQL, Evolution, Vercel, variaveis de ambiente,
+> criacao de conta e conexao do WhatsApp.
 
-1. Conta no Supabase com um projeto ja criado.
-2. Chaves do Supabase preenchidas no arquivo `.env` (use `.env.example` como base).
-3. Node.js 18+.
+## Pre-requisitos (resumo)
 
-## Setup do banco (Supabase)
+1. Conta no **Supabase** + projeto criado.
+2. **Evolution API** rodando num VPS proprio com HTTPS.
+3. Chave da **OpenAI**.
+4. **Node.js 20+** (apenas para rodar local).
+5. Conta na **Vercel** (para deploy).
 
-Abra o **SQL Editor** do seu projeto no Supabase e rode o conteudo de
-`db/schema.sql`. Isso cria as tabelas:
+## Setup do banco (resumo)
 
-- `public.chatbots`
-- `public.leads`
-- `public.messages`
-- `public.api_keys` (chaves para a API externa de consultas)
+Abra o **SQL Editor** do Supabase e rode o conteudo completo de
+[`db/schema.sql`](db/schema.sql). O script e **idempotente** (usa `if not exists`)
+e pode ser executado em instalacoes novas ou ja existentes.
 
-E ativa RLS para isolar dados por usuario.
+Tabelas criadas:
 
-**Projetos ja existentes:** rode no SQL Editor apenas o bloco novo da tabela `api_keys`
-e as politicas correspondentes (ou o arquivo inteiro — os `if not exists` sao idempotentes).
-Se a tabela `chatbots` ja existe sem as colunas novas, rode tambem:
+- `public.chatbots` — chatbots do usuario
+- `public.leads` — contatos que conversaram
+- `public.messages` — historico de mensagens
+- `public.api_keys` — hashes das chaves da API externa (v1)
+- `public.chatbot_integrations` — Google Sheets / Docs conectados ao agente
 
-```sql
-alter table public.chatbots
-  add column if not exists whatsapp_test_filter_enabled boolean not null default false;
-alter table public.chatbots
-  add column if not exists whatsapp_test_phone text not null default '';
-alter table public.chatbots
-  add column if not exists whatsapp_connection_status text not null default 'disconnected';
-alter table public.chatbots
-  add column if not exists whatsapp_connected_at timestamptz;
-alter table public.chatbots
-  add column if not exists openai_model text not null default 'gpt-4o-mini';
-alter table public.chatbots
-  add column if not exists temperature numeric not null default 0.6;
-alter table public.chatbots
-  add column if not exists max_tokens integer not null default 400;
-alter table public.chatbots
-  add column if not exists humanize_enabled boolean not null default true;
-```
+Todas com **Row Level Security** ligado (isolamento por usuario).
 
-## Rodando
+Passo-a-passo completo e explicacao de cada coluna: [INSTALL.md](INSTALL.md).
+
+## Rodando local
 
 ```bash
+git clone https://github.com/webereaugusto/gerador-chatbot.git
+cd gerador-chatbot
 npm install
+cp .env.example .env   # depois edite com suas chaves
 npm run dev
 ```
 
