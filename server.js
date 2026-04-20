@@ -668,10 +668,44 @@ async function evoDeleteInstance(instanceName) {
   return evoRequest("DELETE", `/instance/delete/${encodeURIComponent(instanceName)}`);
 }
 
+function extractOwnerPhone(raw) {
+  const jid =
+    raw?.instance?.owner ||
+    raw?.ownerJid ||
+    raw?.owner ||
+    raw?.data?.instance?.owner ||
+    raw?.data?.owner ||
+    null;
+  if (!jid || typeof jid !== "string") return null;
+  return jid.split("@")[0].replace(/\D/g, "") || null;
+}
+
 async function updateBotConnectionStatus(botId, status, extra = {}) {
   const update = { whatsapp_connection_status: status, ...extra };
-  if (status === "open" && !extra.whatsapp_connected_at) {
-    update.whatsapp_connected_at = new Date().toISOString();
+  if (status === "open") {
+    if (!extra.whatsapp_connected_at) {
+      update.whatsapp_connected_at = new Date().toISOString();
+    }
+    // Capturar numero automaticamente se ainda nao foi salvo e nao veio no extra
+    if (!extra.whatsapp_share_phone) {
+      try {
+        const { data: current } = await supabaseAdmin
+          .from("chatbots")
+          .select("evolution_instance, whatsapp_share_phone")
+          .eq("id", botId)
+          .single();
+        if (current?.evolution_instance && !current.whatsapp_share_phone) {
+          const state = await evoGetState(current.evolution_instance);
+          const phone = extractOwnerPhone(state);
+          if (phone) {
+            update.whatsapp_share_phone = phone;
+            console.log(`[EVO] capturou ownerPhone=${phone} para bot=${botId}`);
+          }
+        }
+      } catch (err) {
+        console.warn(`[EVO] nao conseguiu capturar ownerPhone: ${err.message}`);
+      }
+    }
   }
   await supabaseAdmin.from("chatbots").update(update).eq("id", botId);
 }
@@ -1039,14 +1073,23 @@ app.get("/api/chatbots/:id/connection-state", requireUser, async (req, res) => {
     }
 
     let status = bot.whatsapp_connection_status || "disconnected";
+    let raw = null;
     try {
-      const raw = await evoGetState(bot.evolution_instance);
+      raw = await evoGetState(bot.evolution_instance);
       status = normalizeEvolutionState(raw);
     } catch (err) {
       console.warn(`[EVO state] ${err.message}`);
     }
 
-    if (status !== bot.whatsapp_connection_status) {
+    if (status === "open" && !bot.whatsapp_share_phone) {
+      // Aproveita o raw que ja temos para capturar o numero
+      const phone = raw ? extractOwnerPhone(raw) : null;
+      await updateBotConnectionStatus(
+        bot.id,
+        "open",
+        phone ? { whatsapp_share_phone: phone } : {}
+      );
+    } else if (status !== bot.whatsapp_connection_status) {
       await updateBotConnectionStatus(bot.id, status);
     }
 
@@ -1669,6 +1712,26 @@ app.post("/webhook/evolution/:botId", async (req, res) => {
     if (!bot) return res.status(404).json({ error: "Chatbot nao encontrado." });
     if (!bot.openai_api_key || !bot.evolution_instance) {
       return res.status(400).json({ error: "Chatbot sem configuracao completa." });
+    }
+
+    // Tratar eventos de CONNECTION_UPDATE para capturar numero do owner
+    const eventType = String(
+      req.body?.event || req.body?.data?.event || ""
+    ).toUpperCase();
+    if (eventType === "CONNECTION_UPDATE" || eventType === "CONNECTION.UPDATE") {
+      const payload = req.body?.data || req.body;
+      const newStatus = normalizeEvolutionState(payload);
+      if (newStatus === "open") {
+        const phone = extractOwnerPhone(payload);
+        await updateBotConnectionStatus(
+          bot.id,
+          "open",
+          phone ? { whatsapp_share_phone: phone } : {}
+        );
+      } else if (newStatus === "disconnected" || newStatus === "close") {
+        await updateBotConnectionStatus(bot.id, "disconnected");
+      }
+      return res.status(200).json({ ok: true });
     }
 
     // Mensagem chegando = conexao aberta; atualizar status de forma oportunistica
