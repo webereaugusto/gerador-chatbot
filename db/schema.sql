@@ -54,6 +54,18 @@ alter table public.chatbots
 alter table public.chatbots
   add column if not exists humanize_enabled boolean not null default true;
 
+-- migracao idempotente (anti-spam / classificador)
+alter table public.chatbots
+  add column if not exists spam_protection_enabled boolean not null default true;
+alter table public.chatbots
+  add column if not exists spam_rate_max integer not null default 12;
+alter table public.chatbots
+  add column if not exists spam_rate_window_sec integer not null default 60;
+alter table public.chatbots
+  add column if not exists spam_classifier_enabled boolean not null default false;
+alter table public.chatbots
+  add column if not exists spam_strikes_to_close integer not null default 2;
+
 -- -----------------------------
 -- Tabela: leads
 -- -----------------------------
@@ -75,6 +87,10 @@ alter table public.leads
 -- migracao idempotente (modo humano por lead)
 alter table public.leads
   add column if not exists human_takeover boolean not null default false;
+alter table public.leads
+  add column if not exists conversation_closed boolean not null default false;
+alter table public.leads
+  add column if not exists off_topic_strikes integer not null default 0;
 
 create index if not exists leads_chatbot_id_idx
   on public.leads(chatbot_id);
@@ -95,6 +111,38 @@ create table if not exists public.messages (
 
 create index if not exists messages_lead_id_idx
   on public.messages(lead_id, created_at);
+
+-- -----------------------------
+-- Anti-spam: eventos para limite de taxa (janela deslizante por consulta)
+-- -----------------------------
+create table if not exists public.spam_rate_events (
+  id uuid primary key default gen_random_uuid(),
+  chatbot_id uuid not null references public.chatbots(id) on delete cascade,
+  bucket_key text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists spam_rate_events_lookup_idx
+  on public.spam_rate_events(chatbot_id, bucket_key, created_at desc);
+
+-- -----------------------------
+-- Remetentes bloqueados por chatbot (telefone WA, sessao web ou ip hash)
+-- -----------------------------
+create table if not exists public.blocked_senders (
+  id uuid primary key default gen_random_uuid(),
+  chatbot_id uuid not null references public.chatbots(id) on delete cascade,
+  identifier text not null,
+  reason text not null default '',
+  blocked_until timestamptz,
+  created_at timestamptz not null default now(),
+  unique (chatbot_id, identifier)
+);
+
+create index if not exists blocked_senders_chatbot_idx
+  on public.blocked_senders(chatbot_id);
+
+alter table public.spam_rate_events enable row level security;
+alter table public.blocked_senders enable row level security;
 
 -- -----------------------------
 -- Tabela: api_keys (integrações externas — somente hash da chave)

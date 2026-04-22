@@ -7,12 +7,21 @@ const axios = require("axios");
 const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
+app.set("trust proxy", 1);
 const port = Number(process.env.PORT || 3000);
 
 const supabaseUrl = (process.env.SUPABASE_URL || "").trim();
 const supabaseAnonKey = (process.env.SUPABASE_ANON_KEY || "").trim();
 const supabaseServiceRole = (process.env.SUPABASE_SERVICE_ROLE || "").trim();
 const apiKeyPepper = (process.env.API_KEY_PEPPER || "").trim();
+const spamIpPepper = (process.env.SPAM_IP_PEPPER || apiKeyPepper || "gc_spam").trim();
+
+const SPAM_MSG_CONVERSATION_CLOSED =
+  "Esta conversa foi encerrada. Para novo atendimento, use os canais oficiais da empresa.";
+const SPAM_MSG_BLOCKED = "No momento nao foi possivel processar sua mensagem.";
+const SPAM_MSG_RATE_LIMIT = "Muitas mensagens em pouco tempo. Aguarde um minuto e tente novamente.";
+const SPAM_MSG_OFF_TOPIC =
+  "Sua mensagem parece fora do tema do atendimento. Reformule em relacao ao nosso servico ou produto.";
 const evolutionBaseUrl = (process.env.EVOLUTION_BASE_URL || "")
   .trim()
   .replace(/\/$/, "");
@@ -228,6 +237,164 @@ function sleep(ms) {
 }
 
 // ---------------------------------------------------------------
+// Anti-spam (rate limit, bloqueio, classificador opcional)
+// ---------------------------------------------------------------
+function getClientIp(req) {
+  const xff = String(req.headers["x-forwarded-for"] || "").trim();
+  if (xff) {
+    const first = xff.split(",")[0].trim();
+    if (first) return first;
+  }
+  return String(req.socket?.remoteAddress || req.ip || "").trim() || "0.0.0.0";
+}
+
+function hashIp(ip) {
+  return crypto
+    .createHash("sha256")
+    .update(`${spamIpPepper}|${ip}`)
+    .digest("hex")
+    .slice(0, 64);
+}
+
+function spamConfig(bot) {
+  return {
+    protection:
+      bot?.spam_protection_enabled === undefined
+        ? true
+        : Boolean(bot.spam_protection_enabled),
+    max: Math.round(clampNumber(bot?.spam_rate_max, 1, 500, 12)),
+    windowSec: Math.round(clampNumber(bot?.spam_rate_window_sec, 5, 3600, 60)),
+    classifier: Boolean(bot?.spam_classifier_enabled),
+    strikesToClose: Math.round(clampNumber(bot?.spam_strikes_to_close, 1, 20, 2)),
+  };
+}
+
+async function checkRateLimitAllowed(botId, bucketKey, cfg) {
+  if (!supabaseAdmin) return true;
+  const since = new Date(Date.now() - cfg.windowSec * 1000).toISOString();
+  const { count, error } = await supabaseAdmin
+    .from("spam_rate_events")
+    .select("id", { count: "exact", head: true })
+    .eq("chatbot_id", botId)
+    .eq("bucket_key", bucketKey)
+    .gte("created_at", since);
+  if (error) {
+    console.warn("[spam] rate count:", error.message);
+    return true;
+  }
+  if ((count || 0) >= cfg.max) return false;
+  const { error: insertErr } = await supabaseAdmin
+    .from("spam_rate_events")
+    .insert({ chatbot_id: botId, bucket_key: bucketKey });
+  if (insertErr) {
+    console.warn("[spam] rate insert:", insertErr.message);
+    return true;
+  }
+  if (Math.random() < 0.02) {
+    const prune = new Date(
+      Date.now() - cfg.windowSec * 3 * 1000,
+    ).toISOString();
+    supabaseAdmin
+      .from("spam_rate_events")
+      .delete()
+      .eq("chatbot_id", botId)
+      .lt("created_at", prune)
+      .then(() => {})
+      .catch(() => {});
+  }
+  return true;
+}
+
+async function findActiveBlock(botId, identifiers) {
+  const ids = [...new Set((identifiers || []).filter(Boolean))];
+  if (!supabaseAdmin || !ids.length) return null;
+  const { data, error } = await supabaseAdmin
+    .from("blocked_senders")
+    .select("identifier, reason, blocked_until")
+    .eq("chatbot_id", botId)
+    .in("identifier", ids);
+  if (error) {
+    console.warn("[spam] block query:", error.message);
+    return null;
+  }
+  const now = Date.now();
+  for (const row of data || []) {
+    if (!row.blocked_until || new Date(row.blocked_until).getTime() > now) {
+      return { identifier: row.identifier, reason: row.reason };
+    }
+  }
+  return null;
+}
+
+async function classifyOnTopic(bot, userText) {
+  const client = new OpenAI({ apiKey: bot.openai_api_key });
+  const ctx = `${(bot.system_prompt || "").slice(0, 500)}\n${(bot.knowledge_base || "").slice(0, 500)}`;
+  const resp = await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0,
+    max_tokens: 8,
+    messages: [
+      {
+        role: "system",
+        content:
+          "Responda apenas uma palavra: SIM ou NAO. SIM = a mensagem do usuario tem relacao com o contexto do negocio ou atendimento. NAO = spam, assunto aleatorio ou sem relacao.",
+      },
+      {
+        role: "user",
+        content: `Contexto (resumo):\n${ctx}\n\nMensagem:\n${String(userText).slice(0, 2000)}`,
+      },
+    ],
+  });
+  const t = (resp.choices?.[0]?.message?.content || "")
+    .trim()
+    .toUpperCase();
+  if (/^NAO\b|^NÃO\b|^N\b/.test(t)) return false;
+  if (/^SIM\b|^S\b/.test(t)) return true;
+  return !t.includes("NAO") && !t.includes("NÃO");
+}
+
+/**
+ * Classificador on-topic (opcional). Atualiza off_topic_strikes e pode fechar a conversa.
+ * Retorna continueAi=false quando a resposta deve ser curta/canned sem generateAiReply.
+ */
+async function evaluateSpamClassifier(bot, lead, userText) {
+  if (!bot.spam_classifier_enabled || !supabaseAdmin) {
+    return { continueAi: true };
+  }
+  const trimmed = String(userText || "").trim();
+  if (trimmed.length < 2) return { continueAi: true };
+
+  let onTopic;
+  try {
+    onTopic = await classifyOnTopic(bot, trimmed);
+  } catch (e) {
+    console.warn("[spam] classifier:", e.message);
+    return { continueAi: true };
+  }
+
+  if (onTopic) {
+    await supabaseAdmin
+      .from("leads")
+      .update({ off_topic_strikes: 0 })
+      .eq("id", lead.id);
+    return { continueAi: true };
+  }
+
+  const cfg = spamConfig(bot);
+  const strikes = (Number(lead.off_topic_strikes) || 0) + 1;
+  const payload = { off_topic_strikes: strikes };
+  let reply = SPAM_MSG_OFF_TOPIC;
+  let closed = false;
+  if (strikes >= cfg.strikesToClose) {
+    payload.conversation_closed = true;
+    reply = SPAM_MSG_CONVERSATION_CLOSED;
+    closed = true;
+  }
+  await supabaseAdmin.from("leads").update(payload).eq("id", lead.id);
+  return { continueAi: false, reply, closed };
+}
+
+// ---------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------
 function sanitizePhone(remoteJid) {
@@ -315,6 +482,14 @@ function serializeBot(req, bot) {
     maxTokens: bot.max_tokens || 400,
     humanizeEnabled:
       bot.humanize_enabled === undefined ? true : Boolean(bot.humanize_enabled),
+    spamProtectionEnabled:
+      bot.spam_protection_enabled === undefined
+        ? true
+        : Boolean(bot.spam_protection_enabled),
+    spamRateMax: bot.spam_rate_max ?? 12,
+    spamRateWindowSec: bot.spam_rate_window_sec ?? 60,
+    spamClassifierEnabled: Boolean(bot.spam_classifier_enabled),
+    spamStrikesToClose: bot.spam_strikes_to_close ?? 2,
     configured: isBotConfigured(bot),
     webhookUrl: buildBotWebhookUrl(req, bot.id),
     createdAt: bot.created_at,
@@ -900,6 +1075,25 @@ function readBotFields(body) {
   if (body && Object.prototype.hasOwnProperty.call(body, "whatsappSharePhone")) {
     fields.whatsapp_share_phone = normalizeBrPhone(body.whatsappSharePhone || "");
   }
+  if (body && Object.prototype.hasOwnProperty.call(body, "spamProtectionEnabled")) {
+    fields.spam_protection_enabled = Boolean(body.spamProtectionEnabled);
+  }
+  if (body && Object.prototype.hasOwnProperty.call(body, "spamClassifierEnabled")) {
+    fields.spam_classifier_enabled = Boolean(body.spamClassifierEnabled);
+  }
+  if (body && Object.prototype.hasOwnProperty.call(body, "spamRateMax")) {
+    fields.spam_rate_max = Math.round(clampNumber(body.spamRateMax, 1, 500, 12));
+  }
+  if (body && Object.prototype.hasOwnProperty.call(body, "spamRateWindowSec")) {
+    fields.spam_rate_window_sec = Math.round(
+      clampNumber(body.spamRateWindowSec, 5, 3600, 60),
+    );
+  }
+  if (body && Object.prototype.hasOwnProperty.call(body, "spamStrikesToClose")) {
+    fields.spam_strikes_to_close = Math.round(
+      clampNumber(body.spamStrikesToClose, 1, 20, 2),
+    );
+  }
   return fields;
 }
 
@@ -933,22 +1127,37 @@ app.post("/api/chatbots", requireUser, async (req, res) => {
   const filterError = validateTestFilter(fields);
   if (filterError) return res.status(400).json({ error: filterError });
 
+  const insertRow = {
+    user_id: req.user.id,
+    name: fields.name,
+    openai_api_key: fields.openai_api_key,
+    system_prompt: fields.system_prompt || fallbackPrompt,
+    knowledge_base: fields.knowledge_base,
+    whatsapp_test_filter_enabled: fields.whatsapp_test_filter_enabled,
+    whatsapp_test_phone: fields.whatsapp_test_phone,
+    whatsapp_share_phone: fields.whatsapp_share_phone || "",
+    openai_model: fields.openai_model,
+    temperature: fields.temperature,
+    max_tokens: fields.max_tokens,
+    humanize_enabled: fields.humanize_enabled,
+  };
+  if (fields.spam_protection_enabled !== undefined) {
+    insertRow.spam_protection_enabled = fields.spam_protection_enabled;
+  }
+  if (fields.spam_classifier_enabled !== undefined) {
+    insertRow.spam_classifier_enabled = fields.spam_classifier_enabled;
+  }
+  if (fields.spam_rate_max !== undefined) insertRow.spam_rate_max = fields.spam_rate_max;
+  if (fields.spam_rate_window_sec !== undefined) {
+    insertRow.spam_rate_window_sec = fields.spam_rate_window_sec;
+  }
+  if (fields.spam_strikes_to_close !== undefined) {
+    insertRow.spam_strikes_to_close = fields.spam_strikes_to_close;
+  }
+
   const { data, error } = await supabaseAdmin
     .from("chatbots")
-    .insert({
-      user_id: req.user.id,
-      name: fields.name,
-      openai_api_key: fields.openai_api_key,
-      system_prompt: fields.system_prompt || fallbackPrompt,
-      knowledge_base: fields.knowledge_base,
-      whatsapp_test_filter_enabled: fields.whatsapp_test_filter_enabled,
-      whatsapp_test_phone: fields.whatsapp_test_phone,
-      whatsapp_share_phone: fields.whatsapp_share_phone || "",
-      openai_model: fields.openai_model,
-      temperature: fields.temperature,
-      max_tokens: fields.max_tokens,
-      humanize_enabled: fields.humanize_enabled,
-    })
+    .insert(insertRow)
     .select("*")
     .single();
 
@@ -984,6 +1193,19 @@ app.put("/api/chatbots/:id", requireUser, async (req, res) => {
   // So atualiza whatsapp_share_phone quando o campo vem explicitamente no body
   if (Object.prototype.hasOwnProperty.call(fields, "whatsapp_share_phone")) {
     update.whatsapp_share_phone = fields.whatsapp_share_phone;
+  }
+  if (fields.spam_protection_enabled !== undefined) {
+    update.spam_protection_enabled = fields.spam_protection_enabled;
+  }
+  if (fields.spam_classifier_enabled !== undefined) {
+    update.spam_classifier_enabled = fields.spam_classifier_enabled;
+  }
+  if (fields.spam_rate_max !== undefined) update.spam_rate_max = fields.spam_rate_max;
+  if (fields.spam_rate_window_sec !== undefined) {
+    update.spam_rate_window_sec = fields.spam_rate_window_sec;
+  }
+  if (fields.spam_strikes_to_close !== undefined) {
+    update.spam_strikes_to_close = fields.spam_strikes_to_close;
   }
 
   if (fields.openai_api_key) update.openai_api_key = fields.openai_api_key;
@@ -1588,13 +1810,72 @@ app.post("/api/public/chat/:id", async (req, res) => {
       return res.status(400).json({ error: "sessionId e message sao obrigatorios." });
     }
 
+    const cfg = spamConfig(bot);
+    const ipHash = hashIp(getClientIp(req));
+
+    if (cfg.protection) {
+      const allowed = await checkRateLimitAllowed(
+        bot.id,
+        `web_sess:${sessionId}`,
+        cfg,
+      );
+      if (!allowed) {
+        return res.status(429).json({
+          error: SPAM_MSG_RATE_LIMIT,
+          code: "rate_limit",
+        });
+      }
+    }
+
     const phone = `web-${sessionId}`;
     const lead = await upsertLead(bot.id, phone, visitorName, "web");
 
+    const block = await findActiveBlock(bot.id, [phone, `ip:${ipHash}`]);
     await saveMessage(lead.id, "user", message);
+
+    if (block) {
+      const assistantRow = await saveMessage(lead.id, "assistant", SPAM_MSG_BLOCKED);
+      return res.json({
+        reply: SPAM_MSG_BLOCKED,
+        assistantMessage: assistantRow
+          ? { id: assistantRow.id, created_at: assistantRow.created_at }
+          : null,
+        ignored: true,
+        reason: "blocked",
+      });
+    }
+
+    if (lead.conversation_closed) {
+      const assistantRow = await saveMessage(
+        lead.id,
+        "assistant",
+        SPAM_MSG_CONVERSATION_CLOSED,
+      );
+      return res.json({
+        reply: SPAM_MSG_CONVERSATION_CLOSED,
+        assistantMessage: assistantRow
+          ? { id: assistantRow.id, created_at: assistantRow.created_at }
+          : null,
+        conversation_closed: true,
+      });
+    }
 
     if (lead.human_takeover) {
       return res.json({ reply: null, human_takeover: true });
+    }
+
+    const spamCls = await evaluateSpamClassifier(bot, lead, message);
+    if (!spamCls.continueAi) {
+      const assistantRow = await saveMessage(lead.id, "assistant", spamCls.reply);
+      return res.json({
+        reply: spamCls.reply,
+        assistantMessage: assistantRow
+          ? { id: assistantRow.id, created_at: assistantRow.created_at }
+          : null,
+        ...(spamCls.closed
+          ? { conversation_closed: true }
+          : { off_topic: true }),
+      });
     }
 
     const history = await getRecentHistory(lead.id, 12);
@@ -1810,12 +2091,52 @@ app.post("/webhook/evolution/:botId", async (req, res) => {
       return res.status(200).json({ ignored: true, reason: "test_filter" });
     }
 
+    const cfg = spamConfig(bot);
+    if (cfg.protection) {
+      const allowed = await checkRateLimitAllowed(bot.id, `wa:${number}`, cfg);
+      if (!allowed) {
+        console.log(`[WEBHOOK] rate_limit bot=${bot.id} wa:${number}`);
+        return res.status(200).json({ ignored: true, reason: "rate_limit" });
+      }
+    }
+
     const lead = await upsertLead(bot.id, number, pushName);
+    const norm = normalizeBrPhone(number);
+    const block = await findActiveBlock(bot.id, [number, norm].filter(Boolean));
     await saveMessage(lead.id, "user", text);
+
+    if (block) {
+      console.log(
+        `[WEBHOOK] blocked bot=${bot.id} id=${block.identifier} lead=${lead.id}`,
+      );
+      await saveMessage(lead.id, "assistant", SPAM_MSG_BLOCKED);
+      await sendReply(bot, number, SPAM_MSG_BLOCKED);
+      return res.status(200).json({ ignored: true, reason: "blocked" });
+    }
+
+    if (lead.conversation_closed) {
+      await saveMessage(lead.id, "assistant", SPAM_MSG_CONVERSATION_CLOSED);
+      await sendReply(bot, number, SPAM_MSG_CONVERSATION_CLOSED);
+      return res
+        .status(200)
+        .json({ ok: true, ignored: true, reason: "conversation_closed" });
+    }
 
     if (lead.human_takeover) {
       console.log(`[WEBHOOK] lead=${lead.id} em modo HUMANO - IA suprimida`);
       return res.status(200).json({ ok: true, humanTakeover: true });
+    }
+
+    const spamCls = await evaluateSpamClassifier(bot, lead, text);
+    if (!spamCls.continueAi) {
+      await saveMessage(lead.id, "assistant", spamCls.reply);
+      await sendReply(bot, number, spamCls.reply);
+      return res.status(200).json({
+        ok: true,
+        ...(spamCls.closed
+          ? { conversation_closed: true }
+          : { off_topic: true }),
+      });
     }
 
     const history = await getRecentHistory(lead.id, 12);
