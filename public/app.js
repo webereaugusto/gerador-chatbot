@@ -1067,6 +1067,7 @@ function refreshWidgetCode() {
 
 function openWidgetModal(bot) {
   currentWidgetBot = bot;
+  widgetModal.dataset.botId = bot?.id || "";
   document.getElementById("widgetTitle").value = bot.name || "Atendimento";
   document.getElementById("widgetSubtitle").value = "Estamos online. Como posso ajudar?";
   document.getElementById("widgetGreeting").value = "Olá! Em que posso te ajudar hoje?";
@@ -1080,9 +1081,13 @@ function openWidgetModal(bot) {
 
 document.getElementById("closeWidgetModalBtn").addEventListener("click", () => {
   widgetModal.classList.remove("open");
+  widgetModal.dataset.botId = "";
 });
 widgetModal.addEventListener("click", (e) => {
-  if (e.target === widgetModal) widgetModal.classList.remove("open");
+  if (e.target === widgetModal) {
+    widgetModal.classList.remove("open");
+    widgetModal.dataset.botId = "";
+  }
 });
 
 // ---------------------------------------------------------------
@@ -1257,16 +1262,30 @@ document.getElementById("copyWidgetCodeBtn").addEventListener("click", async () 
 });
 
 document.getElementById("previewWidgetBtn").addEventListener("click", () => {
-  if (!currentWidgetBot) return;
+  const botId = currentWidgetBot?.id || widgetModal.dataset.botId;
+  if (!botId) {
+    const statusEl = document.getElementById("widgetStatus");
+    statusEl.className = "status-text error";
+    statusEl.innerText =
+      "Abra o widget pelo botão WIDGET no card do chatbot e tente de novo.";
+    return;
+  }
   const params = new URLSearchParams({
-    botId: currentWidgetBot.id,
+    botId,
     title: document.getElementById("widgetTitle").value,
     subtitle: document.getElementById("widgetSubtitle").value,
     greeting: document.getElementById("widgetGreeting").value,
     color: document.getElementById("widgetColor").value,
     position: document.getElementById("widgetPosition").value,
   });
-  window.open(`/widget-demo.html?${params.toString()}`, "_blank");
+  const url = `${window.location.origin}/widget-demo.html?${params.toString()}`;
+  const win = window.open(url, "_blank", "noopener,noreferrer");
+  if (!win) {
+    const statusEl = document.getElementById("widgetStatus");
+    statusEl.className = "status-text error";
+    statusEl.innerText =
+      "O navegador bloqueou a nova aba. Permita pop-ups para este site ou copie o link manualmente.";
+  }
 });
 
 // ---------------------------------------------------------------
