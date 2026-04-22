@@ -162,6 +162,16 @@
 
   var lastMsgAt = new Date().toISOString();
   var pollTimer = null;
+  /** Evita renderizar a mesma linha do banco duas vezes (POST + poll). */
+  var seenMessageIds = {};
+
+  function rememberMessageId(m) {
+    if (m && m.id) seenMessageIds[m.id] = true;
+  }
+
+  function bumpLastMsgAt(ts) {
+    if (ts && (!lastMsgAt || ts > lastMsgAt)) lastMsgAt = ts;
+  }
 
   async function pollMessages() {
     try {
@@ -180,11 +190,14 @@
       for (var i = 0; i < items.length; i++) {
         var m = items[i];
         if (m.role === "assistant") {
+          if (m.id && seenMessageIds[m.id]) {
+            bumpLastMsgAt(m.created_at);
+            continue;
+          }
+          if (m.id) rememberMessageId(m);
           addMessage("bot", m.content);
         }
-        if (m.created_at && m.created_at > lastMsgAt) {
-          lastMsgAt = m.created_at;
-        }
+        bumpLastMsgAt(m.created_at);
       }
     } catch (e) {
       // silencioso — tenta de novo no proximo intervalo
@@ -226,10 +239,13 @@
   });
   panel.querySelector(".gcw-close").addEventListener("click", closePanel);
 
+  var sending = false;
+
   async function send() {
     var text = input.value.trim();
-    if (!text) return;
+    if (!text || sending) return;
 
+    sending = true;
     input.value = "";
     input.disabled = true;
     sendBtn.disabled = true;
@@ -255,12 +271,18 @@
         // operador humano assumiu — resposta chega via polling
       } else if (data && data.reply) {
         addMessage("bot", data.reply);
-        lastMsgAt = new Date().toISOString();
+        if (data.assistantMessage && data.assistantMessage.created_at) {
+          if (data.assistantMessage.id) rememberMessageId(data.assistantMessage);
+          lastMsgAt = data.assistantMessage.created_at;
+        } else {
+          lastMsgAt = new Date().toISOString();
+        }
       }
     } catch (e) {
       typingEl.remove();
       addMessage("bot", "Sem conexão. Verifique sua internet e tente novamente.");
     } finally {
+      sending = false;
       input.disabled = false;
       sendBtn.disabled = false;
       input.focus();

@@ -1601,9 +1601,14 @@ app.post("/api/public/chat/:id", async (req, res) => {
     const historyWithoutLast = history.slice(0, -1);
     const integrations = await loadEnabledIntegrations(bot.id);
     const reply = await generateAiReply(bot, message, historyWithoutLast, integrations);
-    await saveMessage(lead.id, "assistant", reply);
+    const assistantRow = await saveMessage(lead.id, "assistant", reply);
 
-    res.json({ reply });
+    res.json({
+      reply,
+      assistantMessage: assistantRow
+        ? { id: assistantRow.id, created_at: assistantRow.created_at }
+        : null,
+    });
   } catch (error) {
     const src = error.source || "unknown";
     const detail = error.message || String(error);
@@ -1637,7 +1642,7 @@ app.get("/api/public/messages/:id", async (req, res) => {
 
     let q = supabaseAdmin
       .from("messages")
-      .select("role, content, created_at")
+      .select("id, role, content, created_at")
       .eq("lead_id", lead.id)
       .order("created_at", { ascending: true })
       .limit(50);
